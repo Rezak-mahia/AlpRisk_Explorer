@@ -1,34 +1,125 @@
 <template>
   <div class="three-d-container">
-    <h2 class="panel-title">Vue 3D</h2>
-
-    <div class="three-d-placeholder" v-if="!selectedSummit">
-      <div>
-        <strong>Vue 3D prête</strong>
-        <p>Sélectionne un sommet pour préparer le centrage 3D.</p>
-      </div>
-    </div>
-
-    <div class="three-d-placeholder" v-else>
-      <div>
-        <strong>{{ selectedSummit.label }}</strong>
-        <p>
-          Ici tu pourras brancher Giro3D avec le terrain swisstopo et centrer la caméra sur
-          le sommet sélectionné.
-        </p>
-        <p>
-          Coordonnées LV95 : {{ selectedSummit.x }}, {{ selectedSummit.y }}
-        </p>
-      </div>
-    </div>
+    <h2 class="panel-title">Vue 3D (Cesium)</h2>
+    <div ref="viewerEl" class="three-d-view"></div>
+    <p v-if="status" class="status">{{ status }}</p>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  Viewer,
+  Terrain,
+  Ion,
+  Cartesian3,
+  Math as CesiumMath,
+  HeadingPitchRange,
+  Color,
+  createOsmBuildingsAsync
+} from 'cesium'
+
+const props = defineProps({
   selectedSummit: {
     type: Object,
     default: null
   }
 })
+
+const viewerEl = ref(null)
+const status = ref('Initialisation de Cesium...')
+let viewer = null
+let summitEntity = null
+
+function flyToSummit(summit) {
+  if (!viewer || !summit) return
+
+  if (summitEntity) {
+    viewer.entities.remove(summitEntity)
+  }
+
+  summitEntity = viewer.entities.add({
+    name: summit.label,
+    position: Cartesian3.fromDegrees(
+      summit.lon,
+      summit.lat,
+      summit.altitude || 0
+    ),
+    point: {
+      pixelSize: 12,
+      color: Color.RED,
+      outlineColor: Color.WHITE,
+      outlineWidth: 2
+    }
+  })
+
+  viewer.flyTo(summitEntity, {
+    offset: new HeadingPitchRange(
+      CesiumMath.toRadians(20),
+      CesiumMath.toRadians(-35),
+      7000
+    ),
+    duration: 2.5
+  })
+}
+
+onMounted(async () => {
+  try {
+    Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNDU1OWQ2Yy1kNTBlLTQ4MDEtOGJkNS1mMzhiMDQ4ODg4ZjIiLCJpZCI6NDA1Nzk1LCJpYXQiOjE3NzM4NjY0NTJ9.zsVh_6IoIG7NqhDd6hGtgTyDBHN-tazruZXH4Cj3bss'
+
+    viewer = new Viewer(viewerEl.value, {
+      terrain: Terrain.fromWorldTerrain(),
+      timeline: false,
+      animation: false,
+      baseLayerPicker: false,
+      geocoder: false,
+      homeButton: false,
+      sceneModePicker: false,
+      navigationHelpButton: false,
+      fullscreenButton: false
+    })
+
+    const buildings = await createOsmBuildingsAsync()
+    viewer.scene.primitives.add(buildings)
+
+    if (props.selectedSummit) {
+      flyToSummit(props.selectedSummit)
+    }
+
+    status.value = ''
+  } catch (error) {
+    console.error(error)
+    status.value = error?.message || "Erreur d'initialisation Cesium"
+  }
+})
+
+watch(
+  () => props.selectedSummit,
+  (summit) => {
+    if (!viewer || !summit) return
+    flyToSummit(summit)
+  }
+)
+
+onBeforeUnmount(() => {
+  if (viewer) {
+    viewer.destroy()
+    viewer = null
+  }
+})
 </script>
+
+<style scoped>
+.three-d-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.three-d-view {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+}
+</style>
