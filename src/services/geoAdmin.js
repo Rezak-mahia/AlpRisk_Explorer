@@ -19,7 +19,7 @@ export async function searchLocations(searchText) {
   return response.json()
 }
 
-export async function getElevationProfile(lineCoordinates, nbPoints = 150) {
+export async function getElevationProfile(lineCoordinates, nbPoints = 400) {
   const geom = {
     type: 'LineString',
     coordinates: lineCoordinates
@@ -29,6 +29,7 @@ export async function getElevationProfile(lineCoordinates, nbPoints = 150) {
   url.searchParams.set('geom', JSON.stringify(geom))
   url.searchParams.set('sr', '2056')
   url.searchParams.set('nb_points', String(nbPoints))
+  url.searchParams.set('distinct_points', 'true')
 
   const response = await fetch(url)
   if (!response.ok) {
