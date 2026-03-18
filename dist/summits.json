@@ -1,0 +1,57 @@
+[
+  {
+    "id": 1,
+    "name": "Matterhorn",
+    "label": "Cervin",
+    "altitude": 4478,
+    "canton": "Valais",
+    "x": 2619360,
+    "y": 1090830,
+    "startX": 2614200,
+    "startY": 1087200
+  },
+  {
+    "id": 2,
+    "name": "Jungfrau",
+    "label": "Jungfrau",
+    "altitude": 4158,
+    "canton": "Berne",
+    "x": 2641280,
+    "y": 1158880,
+    "startX": 2636200,
+    "startY": 1154200
+  },
+  {
+    "id": 3,
+    "name": "Dufourspitze",
+    "label": "Pointe Dufour",
+    "altitude": 4634,
+    "canton": "Valais",
+    "x": 2628760,
+    "y": 1097210,
+    "startX": 2623000,
+    "startY": 1093500
+  },
+  {
+    "id": 4,
+    "name": "Pilatus",
+    "label": "Pilate",
+    "altitude": 2128,
+    "canton": "Lucerne",
+    "x": 2668070,
+    "y": 1200900,
+    "startX": 2663500,
+    "startY": 1198200
+  },
+  {
+    "id": 5,
+    "name": "Niesen",
+    "label": "Niesen",
+    "altitude": 2362,
+    "canton": "Berne",
+    "x": 2617010,
+    "y": 1164720,
+    "startX": 2611800,
+    "startY": 1161200
+  }
+]
