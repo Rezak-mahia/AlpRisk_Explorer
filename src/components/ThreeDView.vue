@@ -15,12 +15,18 @@ import {
   Math as CesiumMath,
   HeadingPitchRange,
   Color,
-  CesiumTerrainProvider
+  CesiumTerrainProvider,
+  HeightReference
 } from 'cesium'
+import { lv95ToLonLat } from '../services/projection.js'
 
 const props = defineProps({
   selectedSummit: {
     type: Object,
+    default: null
+  },
+  drawnLine: {
+    type: Array,
     default: null
   }
 })
@@ -29,8 +35,8 @@ const viewerEl = ref(null)
 const status = ref('Initialisation de Cesium...')
 let viewer = null
 let summitEntity = null
+let profileLineEntity = null
 
-// swisstopo terrain metadata
 const SWISSTOPO_TERRAIN_URL =
   'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
 
@@ -43,16 +49,13 @@ function flyToSummit(summit) {
 
   summitEntity = viewer.entities.add({
     name: summit.label,
-    position: Cartesian3.fromDegrees(
-      summit.lon,
-      summit.lat,
-      summit.altitude || 0
-    ),
+    position: Cartesian3.fromDegrees(summit.lon, summit.lat),
     point: {
       pixelSize: 12,
       color: Color.RED,
       outlineColor: Color.WHITE,
-      outlineWidth: 2
+      outlineWidth: 2,
+      heightReference: HeightReference.CLAMP_TO_GROUND
     }
   })
 
@@ -66,18 +69,42 @@ function flyToSummit(summit) {
   })
 }
 
+function update3DProfileLine(line) {
+  if (!viewer) return
+
+  if (profileLineEntity) {
+    viewer.entities.remove(profileLineEntity)
+    profileLineEntity = null
+  }
+
+  if (!line || line.length < 2) return
+
+  const positions = line.map(([x, y]) => {
+    const { lon, lat } = lv95ToLonLat(x, y)
+    return Cartesian3.fromDegrees(lon, lat)
+  })
+
+  profileLineEntity = viewer.entities.add({
+    polyline: {
+      positions,
+      width: 4,
+      material: Color.BLUE,
+      clampToGround: true
+    }
+  })
+}
+
 onMounted(async () => {
   try {
-    // Garde un token Cesium ion valide pour le viewer / imagerie éventuelle.
     Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNDU1OWQ2Yy1kNTBlLTQ4MDEtOGJkNS1mMzhiMDQ4ODg4ZjIiLCJpZCI6NDA1Nzk1LCJpYXQiOjE3NzM4NjY0NTJ9.zsVh_6IoIG7NqhDd6hGtgTyDBHN-tazruZXH4Cj3bss'
 
-    const swisstopoTerrainProvider =
+    const terrainProvider =
       await CesiumTerrainProvider.fromUrl(SWISSTOPO_TERRAIN_URL, {
         requestVertexNormals: true
       })
 
     viewer = new Viewer(viewerEl.value, {
-      terrainProvider: swisstopoTerrainProvider,
+      terrainProvider,
       timeline: false,
       animation: false,
       baseLayerPicker: false,
@@ -92,11 +119,15 @@ onMounted(async () => {
       flyToSummit(props.selectedSummit)
     }
 
+    if (props.drawnLine) {
+      update3DProfileLine(props.drawnLine)
+    }
+
     status.value = ''
   } catch (error) {
     console.error(error)
     status.value =
-      error?.message || "Erreur d'initialisation Cesium / swisstopo"
+      error?.message || "Erreur d'initialisation Cesium"
   }
 })
 
@@ -106,6 +137,14 @@ watch(
     if (!viewer || !summit) return
     flyToSummit(summit)
   }
+)
+
+watch(
+  () => props.drawnLine,
+  (line) => {
+    update3DProfileLine(line)
+  },
+  { deep: true }
 )
 
 onBeforeUnmount(() => {
