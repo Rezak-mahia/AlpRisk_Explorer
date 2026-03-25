@@ -74,8 +74,6 @@ export async function buildMap(target, summitFeatures, popupElement) {
     )
   })
 
-  swisstopoLayer.setZIndex(0)
-
   const map = new Map({
     target,
     layers: [swisstopoLayer, summitLayer],
@@ -86,10 +84,5 @@ export async function buildMap(target, summitFeatures, popupElement) {
     })
   })
 
-  return {
-    map,
-    summitLayer,
-    summitSource,
-    popupOverlay
-  }
+  return { map, popupOverlay }
 }

@@ -1,37 +1,27 @@
 <template>
   <div class="map-container">
-    <div class="map-toolbar">
-      <button @click="resetView">Recentrer la Suisse</button>
-    </div>
-
-    <div ref="mapEl" class="map"></div>
-
+    <div ref="mapEl" class="map-view"></div>
     <div ref="popupEl" class="map-popup" v-show="popupVisible">
-      <strong>{{ popupData?.label }}</strong>
-      <div>{{ popupData?.altitude }} m</div>
-      <div>{{ popupData?.canton }}</div>
+      <div v-if="popupData">
+        <strong>{{ popupData.label }}</strong>
+        <div v-if="popupData.altitude && popupData.altitude !== '?'">{{ popupData.altitude }} m</div>
+        <div v-else class="popup-sub">{{ popupData.canton }}</div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref, watch, nextTick } from 'vue'
-import { fromLonLat } from 'ol/proj.js'
+import { toLonLat, fromLonLat } from 'ol/proj.js'
 import { createSummitFeature, buildMap } from '../services/map.js'
 
 const props = defineProps({
-  summits: {
-    type: Array,
-    required: true
-  },
-  selectedSummit: {
-    type: Object,
-    default: null
-  }
+  summits: { type: Array, required: true },
+  selectedSummit: { type: Object, default: null }
 })
 
 const emit = defineEmits(['select-summit'])
-
 const mapEl = ref(null)
 const popupEl = ref(null)
 const popupVisible = ref(false)
@@ -39,82 +29,46 @@ const popupData = ref(null)
 
 let mapInstance = null
 let popupOverlay = null
-let mapReady = false
-
-function summitToMapCoords(summit) {
-  return fromLonLat([summit.lon, summit.lat])
-}
-
-function showSummitOnMap(summit) {
-  if (!summit || !mapInstance || !popupOverlay) return
-
-  const center = summitToMapCoords(summit)
-
-  mapInstance.getView().animate({
-    center,
-    zoom: 11,
-    duration: 800
-  })
-
-  popupVisible.value = true
-  popupData.value = summit
-  popupOverlay.setPosition(center)
-}
-
-function resetView() {
-  if (!mapInstance) return
-
-  mapInstance.getView().animate({
-    center: fromLonLat([8.23, 46.82]),
-    zoom: 8,
-    duration: 700
-  })
-
-  popupVisible.value = false
-  popupData.value = null
-  popupOverlay?.setPosition(undefined)
-}
 
 onMounted(async () => {
   await nextTick()
-
   const features = props.summits.map(createSummitFeature)
   const built = await buildMap(mapEl.value, features, popupEl.value)
-
   mapInstance = built.map
   popupOverlay = built.popupOverlay
-  mapReady = true
-
-  mapInstance.updateSize()
 
   mapInstance.on('singleclick', (event) => {
-    let found = false
-
-    mapInstance.forEachFeatureAtPixel(event.pixel, (feature) => {
-      const summit = feature.get('summit')
-      if (summit) {
-        found = true
-        emit('select-summit', summit)
-      }
-    })
-
-    if (!found) {
-      popupVisible.value = false
-      popupData.value = null
-      popupOverlay.setPosition(undefined)
+    let feature = mapInstance.forEachFeatureAtPixel(event.pixel, f => f)
+    if (feature) {
+      emit('select-summit', feature.get('summit'))
+    } else {
+      const coords = toLonLat(event.coordinate)
+      emit('select-summit', {
+        id: 'click-' + Date.now(),
+        label: "Point sélectionné par clic",
+        lon: coords[0], lat: coords[1], altitude: null, canton: 'Sélection libre'
+      })
     }
   })
 
-  if (props.selectedSummit) {
-    showSummitOnMap(props.selectedSummit)
-  }
+  if (props.selectedSummit) moveMap(props.selectedSummit)
 })
 
-watch(
-  () => props.selectedSummit,
-  (summit) => {
-    if (!summit || !mapReady) return
-    showSummitOnMap(summit)
-  }
-)
+function moveMap(s) {
+  if (!mapInstance || !s) return
+  const center = fromLonLat([s.lon, s.lat])
+  mapInstance.getView().animate({ center, zoom: 12, duration: 800 })
+  popupData.value = s
+  popupVisible.value = true
+  popupOverlay.setPosition(center)
+}
+
+watch(() => props.selectedSummit, s => moveMap(s))
 </script>
+
+<style scoped>
+.map-container { width: 100%; height: 100%; position: relative; }
+.map-view { width: 100%; height: 100%; }
+.map-popup { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; min-width: 160px; }
+.popup-sub { font-size: 0.8rem; color: #64748b; margin-top: 4px; font-style: italic; }
+</style>
