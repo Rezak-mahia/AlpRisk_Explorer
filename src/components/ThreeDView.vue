@@ -151,17 +151,7 @@ onMounted(async () => {
 })
 
 watch(
-  () => props.selectedSummit,
-  () => {
-    if (!props.clickedPoint) {
-      updateActivePoint()
-    }
-  },
-  { deep: true }
-)
-
-watch(
-  () => props.clickedPoint,
+  [() => props.selectedSummit, () => props.clickedPoint],
   () => {
     updateActivePoint()
   },
@@ -170,9 +160,7 @@ watch(
 
 watch(
   () => props.drawnLine,
-  (line) => {
-    update3DProfileLine(line)
-  },
+  update3DProfileLine,
   { deep: true }
 )
 

@@ -154,18 +154,8 @@ onMounted(() => {
 })
 
 watch(
-  () => props.selectedSummit,
-  () => {
-    loadProfile()
-  },
-  { deep: true }
-)
-
-watch(
-  () => props.drawnLine,
-  () => {
-    loadProfile()
-  },
+  [() => props.selectedSummit, () => props.drawnLine],
+  loadProfile,
   { deep: true }
 )
 </script>

@@ -41,7 +41,7 @@ input {
 
 .main-panel {
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
+  grid-template-columns: 1fr 0.9fr;
   min-width: 0;
   min-height: 0;
   height: 100vh;
@@ -65,10 +65,6 @@ input {
   display: flex;
   flex-direction: column;
   padding: 0.75rem;
-}
-
-.top-panel {
-  display: none;
 }
 
 .map-container,
