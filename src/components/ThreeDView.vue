@@ -25,6 +25,10 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  clickedPoint: {
+    type: Object,
+    default: null
+  },
   drawnLine: {
     type: Array,
     default: null
@@ -34,22 +38,22 @@ const props = defineProps({
 const viewerEl = ref(null)
 const status = ref('Initialisation de Cesium...')
 let viewer = null
-let summitEntity = null
+let activePointEntity = null
 let profileLineEntity = null
 
 const SWISSTOPO_TERRAIN_URL =
   'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
 
-function flyToSummit(summit) {
-  if (!viewer || !summit) return
+function flyToLocation(lon, lat, label = 'Point') {
+  if (!viewer) return
 
-  if (summitEntity) {
-    viewer.entities.remove(summitEntity)
+  if (activePointEntity) {
+    viewer.entities.remove(activePointEntity)
   }
 
-  summitEntity = viewer.entities.add({
-    name: summit.label,
-    position: Cartesian3.fromDegrees(summit.lon, summit.lat),
+  activePointEntity = viewer.entities.add({
+    name: label,
+    position: Cartesian3.fromDegrees(lon, lat),
     point: {
       pixelSize: 12,
       color: Color.RED,
@@ -59,7 +63,7 @@ function flyToSummit(summit) {
     }
   })
 
-  viewer.flyTo(summitEntity, {
+  viewer.flyTo(activePointEntity, {
     offset: new HeadingPitchRange(
       CesiumMath.toRadians(20),
       CesiumMath.toRadians(-35),
@@ -67,6 +71,27 @@ function flyToSummit(summit) {
     ),
     duration: 2.5
   })
+}
+
+function updateActivePoint() {
+  if (!viewer) return
+
+  if (props.clickedPoint) {
+    flyToLocation(
+      props.clickedPoint.lon,
+      props.clickedPoint.lat,
+      'Point sélectionné'
+    )
+    return
+  }
+
+  if (props.selectedSummit) {
+    flyToLocation(
+      props.selectedSummit.lon,
+      props.selectedSummit.lat,
+      props.selectedSummit.label
+    )
+  }
 }
 
 function update3DProfileLine(line) {
@@ -115,28 +140,32 @@ onMounted(async () => {
       fullscreenButton: false
     })
 
-    if (props.selectedSummit) {
-      flyToSummit(props.selectedSummit)
-    }
-
-    if (props.drawnLine) {
-      update3DProfileLine(props.drawnLine)
-    }
+    updateActivePoint()
+    update3DProfileLine(props.drawnLine)
 
     status.value = ''
   } catch (error) {
     console.error(error)
-    status.value =
-      error?.message || "Erreur d'initialisation Cesium"
+    status.value = error?.message || "Erreur d'initialisation Cesium"
   }
 })
 
 watch(
   () => props.selectedSummit,
-  (summit) => {
-    if (!viewer || !summit) return
-    flyToSummit(summit)
-  }
+  () => {
+    if (!props.clickedPoint) {
+      updateActivePoint()
+    }
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.clickedPoint,
+  () => {
+    updateActivePoint()
+  },
+  { deep: true }
 )
 
 watch(

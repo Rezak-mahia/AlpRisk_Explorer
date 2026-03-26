@@ -8,22 +8,33 @@
     <div ref="mapEl" class="map"></div>
 
     <div ref="popupEl" class="map-popup" v-show="popupVisible">
-      <strong>{{ popupData?.label }}</strong>
-      <div>{{ popupData?.altitude }} m</div>
-      <div>{{ popupData?.canton }}</div>
+      <template v-if="popupMode === 'summit'">
+        <strong>{{ popupData?.label }}</strong>
+        <div>{{ popupData?.altitude }} m</div>
+        <div>{{ popupData?.canton }}</div>
+      </template>
+
+      <template v-else-if="popupMode === 'point'">
+        <strong>Point sélectionné</strong>
+        <div>Lon : {{ popupData?.lon?.toFixed(5) }}</div>
+        <div>Lat : {{ popupData?.lat?.toFixed(5) }}</div>
+        <div>X : {{ Math.round(popupData?.x || 0) }}</div>
+        <div>Y : {{ Math.round(popupData?.y || 0) }}</div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref, watch, nextTick } from 'vue'
-import { fromLonLat } from 'ol/proj.js'
+import { fromLonLat, toLonLat } from 'ol/proj.js'
 import Feature from 'ol/Feature.js'
+import Point from 'ol/geom/Point.js'
 import LineString from 'ol/geom/LineString.js'
 import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import Draw from 'ol/interaction/Draw.js'
-import { Style, Stroke } from 'ol/style.js'
+import { Style, Stroke, Circle, Fill } from 'ol/style.js'
 import { createSummitFeature, buildMap } from '../services/map.js'
 import {
   webMercatorToLV95,
@@ -39,18 +50,23 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  clickedPoint: {
+    type: Object,
+    default: null
+  },
   drawnLine: {
     type: Array,
     default: null
   }
 })
 
-const emit = defineEmits(['select-summit', 'draw-line'])
+const emit = defineEmits(['select-summit', 'map-click', 'draw-line'])
 
 const mapEl = ref(null)
 const popupEl = ref(null)
 const popupVisible = ref(false)
 const popupData = ref(null)
+const popupMode = ref(null)
 
 let mapInstance = null
 let popupOverlay = null
@@ -63,8 +79,27 @@ let drawSource = null
 let drawLayer = null
 let drawInteraction = null
 
+let clickedPointSource = null
+let clickedPointLayer = null
+
 function summitToMapCoords(summit) {
   return fromLonLat([summit.lon, summit.lat])
+}
+
+function showSummitPopup(summit) {
+  const center = summitToMapCoords(summit)
+  popupVisible.value = true
+  popupMode.value = 'summit'
+  popupData.value = summit
+  popupOverlay.setPosition(center)
+}
+
+function showPointPopup(point) {
+  const coord = fromLonLat([point.lon, point.lat])
+  popupVisible.value = true
+  popupMode.value = 'point'
+  popupData.value = point
+  popupOverlay.setPosition(coord)
 }
 
 function showSummitOnMap(summit) {
@@ -78,9 +113,7 @@ function showSummitOnMap(summit) {
     duration: 800
   })
 
-  popupVisible.value = true
-  popupData.value = summit
-  popupOverlay.setPosition(center)
+  showSummitPopup(summit)
 }
 
 function resetView() {
@@ -94,6 +127,7 @@ function resetView() {
 
   popupVisible.value = false
   popupData.value = null
+  popupMode.value = null
   popupOverlay?.setPosition(undefined)
 }
 
@@ -111,6 +145,20 @@ function updateProfileLine(line) {
   })
 
   profileSource.addFeature(feature)
+}
+
+function updateClickedPoint(point) {
+  if (!clickedPointSource) return
+
+  clickedPointSource.clear()
+
+  if (!point) return
+
+  const feature = new Feature({
+    geometry: new Point(fromLonLat([point.lon, point.lat]))
+  })
+
+  clickedPointSource.addFeature(feature)
 }
 
 function activateDraw() {
@@ -132,11 +180,7 @@ function activateDraw() {
   drawInteraction.on('drawend', (event) => {
     const coords3857 = event.feature.getGeometry().getCoordinates()
 
-    const coordsLV95 = coords3857.map(([x, y]) =>
-      webMercatorToLV95(x, y)
-    )
-
-    console.log('DRAWN LINE LV95 =', coordsLV95)
+    const coordsLV95 = coords3857.map(([x, y]) => webMercatorToLV95(x, y))
 
     emit('draw-line', coordsLV95)
 
@@ -148,8 +192,8 @@ function activateDraw() {
 onMounted(async () => {
   await nextTick()
 
-  const features = props.summits.map(createSummitFeature)
-  const built = await buildMap(mapEl.value, features, popupEl.value)
+  const summitFeatures = props.summits.map(createSummitFeature)
+  const built = await buildMap(mapEl.value, summitFeatures, popupEl.value)
 
   mapInstance = built.map
   popupOverlay = built.popupOverlay
@@ -181,24 +225,43 @@ onMounted(async () => {
   drawLayer.setZIndex(300)
   mapInstance.addLayer(drawLayer)
 
+  clickedPointSource = new VectorSource()
+  clickedPointLayer = new VectorLayer({
+    source: clickedPointSource,
+    style: new Style({
+      image: new Circle({
+        radius: 7,
+        fill: new Fill({ color: '#dc2626' }),
+        stroke: new Stroke({ color: '#ffffff', width: 2 })
+      })
+    })
+  })
+  clickedPointLayer.setZIndex(400)
+  mapInstance.addLayer(clickedPointLayer)
+
   mapInstance.updateSize()
 
   mapInstance.on('singleclick', (event) => {
-    let found = false
+    if (drawInteraction) return
+
+    let foundSummit = false
 
     mapInstance.forEachFeatureAtPixel(event.pixel, (feature) => {
       const summit = feature.get('summit')
       if (summit) {
-        found = true
+        foundSummit = true
         emit('select-summit', summit)
       }
     })
 
-    if (!found) {
-      popupVisible.value = false
-      popupData.value = null
-      popupOverlay.setPosition(undefined)
-    }
+    if (foundSummit) return
+
+    const [lon, lat] = toLonLat(event.coordinate)
+    const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
+
+    const point = { lon, lat, x, y }
+
+    emit('map-click', point)
   })
 
   if (props.selectedSummit) {
@@ -208,12 +271,17 @@ onMounted(async () => {
   if (props.drawnLine) {
     updateProfileLine(props.drawnLine)
   }
+
+  if (props.clickedPoint) {
+    updateClickedPoint(props.clickedPoint)
+    showPointPopup(props.clickedPoint)
+  }
 })
 
 watch(
   () => props.selectedSummit,
   (summit) => {
-    if (!summit || !mapReady) return
+    if (!summit || !mapReady || props.clickedPoint) return
     showSummitOnMap(summit)
   }
 )
@@ -222,6 +290,18 @@ watch(
   () => props.drawnLine,
   (line) => {
     updateProfileLine(line)
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.clickedPoint,
+  (point) => {
+    updateClickedPoint(point)
+
+    if (point) {
+      showPointPopup(point)
+    }
   },
   { deep: true }
 )

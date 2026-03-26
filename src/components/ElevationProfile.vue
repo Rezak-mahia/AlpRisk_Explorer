@@ -12,6 +12,7 @@
       </span>
       <span v-else>
         Profil automatique autour de <strong>{{ selectedSummit.label }}</strong>.
+        Altitude officielle : {{ selectedSummit.altitude }} m
       </span>
     </p>
 
@@ -96,11 +97,7 @@ async function loadProfile() {
         ? props.drawnLine
         : buildAutomaticLine(summit)
 
-    console.log('LINE USED FOR PROFILE =', line)
-
     const profile = await getElevationProfile(line, 400)
-
-    console.log('PROFILE RESPONSE =', profile)
 
     if (!profile || profile.length === 0) {
       throw new Error('Aucune donnée de profil reçue')
@@ -158,6 +155,14 @@ onMounted(() => {
 
 watch(
   () => props.selectedSummit,
+  () => {
+    loadProfile()
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.drawnLine,
   () => {
     loadProfile()
   },

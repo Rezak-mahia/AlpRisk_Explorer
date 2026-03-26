@@ -3,7 +3,7 @@
     <SummitSidebar
       :summits="summits"
       :selected-summit="selectedSummit"
-      @select-summit="handleSelectSummit"
+      @select-summit="selectSummit"
     />
 
     <main class="main-panel">
@@ -11,13 +11,16 @@
         <MapView
           :summits="summits"
           :selected-summit="selectedSummit"
+          :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
-          @select-summit="handleSelectSummit"
-          @draw-line="handleDrawLine"
+          @select-summit="selectSummit"
+          @map-click="setClickedPoint"
+          @draw-line="setDrawnLine"
         />
 
         <ThreeDView
           :selected-summit="selectedSummit"
+          :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
         />
       </div>
@@ -35,24 +38,29 @@
 import { onMounted, ref } from 'vue'
 import SummitSidebar from './components/SummitSidebar.vue'
 import MapView from './components/MapView.vue'
-import ElevationProfile from './components/ElevationProfile.vue'
 import ThreeDView from './components/ThreeDView.vue'
+import ElevationProfile from './components/ElevationProfile.vue'
 
 const summits = ref([])
 const selectedSummit = ref(null)
+const clickedPoint = ref(null)
 const drawnLine = ref(null)
 const profileVersion = ref(0)
 
-function handleSelectSummit(summit) {
+function selectSummit(summit) {
   selectedSummit.value = summit
+  clickedPoint.value = null
   drawnLine.value = null
   profileVersion.value += 1
 }
 
-function handleDrawLine(line) {
+function setClickedPoint(point) {
+  clickedPoint.value = point
+}
+
+function setDrawnLine(line) {
   drawnLine.value = [...line]
   profileVersion.value += 1
-  console.log('NEW DRAWN LINE IN APP =', drawnLine.value)
 }
 
 onMounted(async () => {
