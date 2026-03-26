@@ -7,7 +7,7 @@
     />
 
     <main class="main-panel">
-      <div class="top-panel">
+      <div class="left-panel">
         <MapView
           :summits="summits"
           :selected-summit="selectedSummit"
@@ -18,18 +18,20 @@
           @draw-line="setDrawnLine"
         />
 
+        <ElevationProfile
+          :key="profileVersion"
+          :selected-summit="selectedSummit"
+          :drawn-line="drawnLine"
+        />
+      </div>
+
+      <div class="right-panel">
         <ThreeDView
           :selected-summit="selectedSummit"
           :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
         />
       </div>
-
-      <ElevationProfile
-        :key="profileVersion"
-        :selected-summit="selectedSummit"
-        :drawn-line="drawnLine"
-      />
     </main>
   </div>
 </template>

@@ -41,19 +41,34 @@ input {
 
 .main-panel {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 250px;
+  grid-template-columns: 1fr 1.1fr;
   min-width: 0;
   min-height: 0;
   height: 100vh;
   overflow: hidden;
 }
 
-.top-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
+.left-panel,
+.right-panel {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+
+.left-panel {
+  display: grid;
+  grid-template-rows: 1fr 260px;
+  gap: 0.75rem;
+}
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
+}
+
+.top-panel {
+  display: none;
 }
 
 .map-container,
@@ -63,6 +78,14 @@ input {
   border: 1px solid #d1d5db;
   min-width: 0;
   min-height: 0;
+}
+
+.left-panel .map-container {
+  height: 100%;
+}
+
+.left-panel .profile-container {
+  width: 100%;
 }
 
 .map-container {
