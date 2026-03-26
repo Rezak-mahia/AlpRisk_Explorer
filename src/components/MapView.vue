@@ -16,10 +16,8 @@
 
       <template v-else-if="popupMode === 'point'">
         <strong>Point sélectionné</strong>
-        <div>Lon : {{ popupData?.lon?.toFixed(5) }}</div>
-        <div>Lat : {{ popupData?.lat?.toFixed(5) }}</div>
-        <div>X : {{ Math.round(popupData?.x || 0) }}</div>
-        <div>Y : {{ Math.round(popupData?.y || 0) }}</div>
+        <div>E : {{ Math.round(popupData?.x || 0) }}</div>
+        <div>N : {{ Math.round(popupData?.y || 0) }}</div>
       </template>
     </div>
   </div>
