@@ -1,6 +1,6 @@
 <template>
   <aside class="sidebar">
-    <h1 class="title">Observatoire des Sommets</h1>
+    <h1 class="title">Analyse des dangers d'avalanche en Valais</h1>
     
     <div class="info-box">
       <p>📍 <strong>Choisir un point :</strong></p>
