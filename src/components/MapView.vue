@@ -1,8 +1,8 @@
 <template>
   <div class="map-container">
     <div class="map-toolbar">
-      <button @click="resetView">Recentrer la Suisse</button>
-      <button @click="activateDraw">Dessiner un profil</button>
+      <button @click="centrerValais">Centrer sur le Valais</button>
+      <button @click="activerDessin">Dessiner un profil</button>
     </div>
 
     <div ref="mapEl" class="map"></div>
@@ -114,12 +114,12 @@ function showSummitOnMap(summit) {
   showSummitPopup(summit)
 }
 
-function resetView() {
+function centrerValais() {
   if (!mapInstance) return
 
   mapInstance.getView().animate({
-    center: fromLonLat([8.23, 46.82]),
-    zoom: 8,
+    center: fromLonLat([7.45, 46.15]),
+    zoom: 10,
     duration: 700
   })
 
@@ -129,7 +129,7 @@ function resetView() {
   popupOverlay?.setPosition(undefined)
 }
 
-function updateProfileLine(line) {
+function mettreAJourProfilLigne(line) {
   if (!profileSource) return
 
   profileSource.clear()
@@ -145,7 +145,7 @@ function updateProfileLine(line) {
   profileSource.addFeature(feature)
 }
 
-function updateClickedPoint(point) {
+function mettreAJourPointClique(point) {
   if (!clickedPointSource) return
 
   clickedPointSource.clear()
@@ -159,7 +159,7 @@ function updateClickedPoint(point) {
   clickedPointSource.addFeature(feature)
 }
 
-function activateDraw() {
+function activerDessin() {
   if (!mapInstance) return
 
   drawSource.clear()
@@ -267,11 +267,11 @@ onMounted(async () => {
   }
 
   if (props.drawnLine) {
-    updateProfileLine(props.drawnLine)
+    mettreAJourProfilLigne(props.drawnLine)
   }
 
   if (props.clickedPoint) {
-    updateClickedPoint(props.clickedPoint)
+    mettreAJourPointClique(props.clickedPoint)
     showPointPopup(props.clickedPoint)
   }
 })
@@ -287,7 +287,7 @@ watch(
 watch(
   () => props.drawnLine,
   (line) => {
-    updateProfileLine(line)
+    mettreAJourProfilLigne(line)
   },
   { deep: true }
 )
@@ -295,7 +295,7 @@ watch(
 watch(
   () => props.clickedPoint,
   (point) => {
-    updateClickedPoint(point)
+    mettreAJourPointClique(point)
 
     if (point) {
       showPointPopup(point)

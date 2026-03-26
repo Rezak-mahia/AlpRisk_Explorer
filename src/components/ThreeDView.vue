@@ -44,7 +44,7 @@ let profileLineEntity = null
 const SWISSTOPO_TERRAIN_URL =
   'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
 
-function flyToLocation(lon, lat, label = 'Point') {
+function seDeplacerVers(lon, lat, label = 'Point') {
   if (!viewer) return
 
   if (activePointEntity) {
@@ -73,11 +73,11 @@ function flyToLocation(lon, lat, label = 'Point') {
   })
 }
 
-function updateActivePoint() {
+function mettreAJourPointActif() {
   if (!viewer) return
 
   if (props.clickedPoint) {
-    flyToLocation(
+    seDeplacerVers(
       props.clickedPoint.lon,
       props.clickedPoint.lat,
       'Point sélectionné'
@@ -86,7 +86,7 @@ function updateActivePoint() {
   }
 
   if (props.selectedSummit) {
-    flyToLocation(
+    seDeplacerVers(
       props.selectedSummit.lon,
       props.selectedSummit.lat,
       props.selectedSummit.label
@@ -94,7 +94,7 @@ function updateActivePoint() {
   }
 }
 
-function update3DProfileLine(line) {
+function mettreAJourLigneProfil3D(line) {
   if (!viewer) return
 
   if (profileLineEntity) {
@@ -140,8 +140,8 @@ onMounted(async () => {
       fullscreenButton: false
     })
 
-    updateActivePoint()
-    update3DProfileLine(props.drawnLine)
+    mettreAJourPointActif()
+    mettreAJourLigneProfil3D(props.drawnLine)
 
     status.value = ''
   } catch (error) {
@@ -153,14 +153,14 @@ onMounted(async () => {
 watch(
   [() => props.selectedSummit, () => props.clickedPoint],
   () => {
-    updateActivePoint()
+    mettreAJourPointActif()
   },
   { deep: true }
 )
 
 watch(
   () => props.drawnLine,
-  update3DProfileLine,
+  mettreAJourLigneProfil3D,
   { deep: true }
 )
 

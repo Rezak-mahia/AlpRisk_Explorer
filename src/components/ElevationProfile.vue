@@ -52,7 +52,7 @@ function destroyChart() {
   }
 }
 
-function buildAutomaticLine(summit) {
+function construireLigneAutomatique(summit) {
   const summitLV95 = lonLatToLV95(summit.lon, summit.lat)
 
   const dx = summitLV95.x - summit.startX
@@ -82,7 +82,7 @@ function buildAutomaticLine(summit) {
   return [start, summitPoint, end]
 }
 
-async function loadProfile() {
+async function chargerProfil() {
   destroyChart()
   error.value = ''
 
@@ -95,7 +95,7 @@ async function loadProfile() {
     const line =
       props.drawnLine && props.drawnLine.length > 1
         ? props.drawnLine
-        : buildAutomaticLine(summit)
+        : construireLigneAutomatique(summit)
 
     const profile = await getElevationProfile(line, 400)
 
@@ -150,12 +150,12 @@ async function loadProfile() {
 }
 
 onMounted(() => {
-  loadProfile()
+  chargerProfil()
 })
 
 watch(
   [() => props.selectedSummit, () => props.drawnLine],
-  loadProfile,
+  chargerProfil,
   { deep: true }
 )
 </script>
