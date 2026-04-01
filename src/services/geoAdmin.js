@@ -1,8 +1,68 @@
-const SEARCH_BASE_URL =
+import WMTSCapabilities from 'ol/format/WMTSCapabilities.js'
+
+// =========================
+// SERVICES CENTRALISÉS
+// =========================
+
+// geo.admin
+export const SEARCH_BASE_URL =
   'https://api3.geo.admin.ch/rest/services/ech/SearchServer'
 
-const PROFILE_URL =
+export const PROFILE_URL =
   'https://api3.geo.admin.ch/rest/services/profile.json'
+
+export const SWISSTOPO_WMTS_CAPABILITIES_URL =
+  'https://wmts.geo.admin.ch/EPSG/3857/1.0.0/WMTSCapabilities.xml'
+
+// swisstopo 3D
+export const SWISSTOPO_TERRAIN_URL =
+  'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
+
+// Remplace par ton vrai token
+export const CESIUM_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNDU1OWQ2Yy1kNTBlLTQ4MDEtOGJkNS1mMzhiMDQ4ODg4ZjIiLCJpZCI6NDA1Nzk1LCJpYXQiOjE3NzM4NjY0NTJ9.zsVh_6IoIG7NqhDd6hGtgTyDBHN-tazruZXH4Cj3bss'
+
+// =========================
+// AVALANCHES VALAIS - ArcGIS MapServer layer 1001
+// =========================
+
+export const VALAIS_DANAT_MAPSERVER_URL =
+  'https://sit.vs.ch/arcgis/rest/services/DANAT/MapServer'
+
+export const VALAIS_AVALANCHE_LAYER_ID = 1001
+
+export function getValaisAvalancheGeoJsonUrl() {
+  const url = new URL(
+    `${VALAIS_DANAT_MAPSERVER_URL}/${VALAIS_AVALANCHE_LAYER_ID}/query`
+  )
+
+  url.searchParams.set('where', '1=1')
+  url.searchParams.set('returnGeometry', 'true')
+  url.searchParams.set('outFields', '*')
+  url.searchParams.set('outSR', '4326')
+  url.searchParams.set('f', 'geojson')
+
+  return url.toString()
+}
+
+// =========================
+// OUTILS WMTS
+// =========================
+
+export async function getSwisstopoWmtsCapabilities() {
+  const parser = new WMTSCapabilities()
+  const response = await fetch(SWISSTOPO_WMTS_CAPABILITIES_URL)
+
+  if (!response.ok) {
+    throw new Error('Erreur lors du chargement des capabilities WMTS swisstopo')
+  }
+
+  const text = await response.text()
+  return parser.read(text)
+}
+
+// =========================
+// APIs déjà présentes
+// =========================
 
 export async function searchLocations(searchText) {
   const url = new URL(SEARCH_BASE_URL)
@@ -16,6 +76,7 @@ export async function searchLocations(searchText) {
   if (!response.ok) {
     throw new Error('Erreur lors de la recherche geo.admin')
   }
+
   return response.json()
 }
 

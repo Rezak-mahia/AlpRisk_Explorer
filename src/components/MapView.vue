@@ -10,8 +10,17 @@
     <div ref="popupEl" class="map-popup" v-show="popupVisible">
       <template v-if="popupMode === 'summit'">
         <strong>{{ popupData?.label }}</strong>
-        <div>{{ popupData?.altitude }} m</div>
+        <div>{{ popupData?.altitude ?? '—' }} m</div>
         <div>{{ popupData?.canton }}</div>
+      </template>
+
+      <template v-else-if="popupMode === 'avalanche'">
+        <strong>Zone d’avalanche</strong>
+        <div v-if="popupData?.dangerLabel">Danger : {{ popupData.dangerLabel }}</div>
+        <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
+        <div v-if="popupData?.process">Processus : {{ popupData.process }}</div>
+        <div v-if="popupData?.indicative">Danger indicatif : {{ popupData.indicative }}</div>
+        <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
       </template>
 
       <template v-else-if="popupMode === 'point'">
@@ -84,20 +93,69 @@ function summitToMapCoords(summit) {
   return fromLonLat([summit.lon, summit.lat])
 }
 
+function dangerLabelFromValue(value) {
+  const n = Number(value)
+  if (n === 4) return 'élevé'
+  if (n === 3) return 'moyen'
+  if (n === 2) return 'faible'
+  return `${value ?? ''}`
+}
+
+function extractAvalancheData(feature) {
+  const props = feature.getProperties()
+
+  const danger =
+    props.DEGRE_DANGER ??
+    props.degre_danger ??
+    props.DANGER ??
+    props.NIVEAU_DANGER ??
+    props.CLASSE ??
+    null
+
+  return {
+    dangerValue: danger,
+    dangerLabel: dangerLabelFromValue(danger),
+    commune:
+      props.COMMUNE ||
+      props.NOM_COMMUNE ||
+      props.COMMUNE_NOM ||
+      props.COMMNAME ||
+      null,
+    process:
+      props.PROCESSUS ||
+      props.PROCESS ||
+      props.PROZESS ||
+      props.TYPE ||
+      null,
+    indicative:
+      props.DANGER_INDICATIF ||
+      props.INDICATIF ||
+      props.INDICATIVE ||
+      null,
+    id:
+      props.OBJECTID ||
+      props.FID ||
+      props.ID ||
+      null
+  }
+}
+
+function showFeaturePopup(coordinate, mode, data) {
+  if (!popupOverlay) return
+  popupVisible.value = true
+  popupMode.value = mode
+  popupData.value = data
+  popupOverlay.setPosition(coordinate)
+}
+
 function showSummitPopup(summit) {
   const center = summitToMapCoords(summit)
-  popupVisible.value = true
-  popupMode.value = 'summit'
-  popupData.value = summit
-  popupOverlay.setPosition(center)
+  showFeaturePopup(center, 'summit', summit)
 }
 
 function showPointPopup(point) {
   const coord = fromLonLat([point.lon, point.lat])
-  popupVisible.value = true
-  popupMode.value = 'point'
-  popupData.value = point
-  popupOverlay.setPosition(coord)
+  showFeaturePopup(coord, 'point', point)
 }
 
 function showSummitOnMap(summit) {
@@ -177,7 +235,6 @@ function activerDessin() {
 
   drawInteraction.on('drawend', (event) => {
     const coords3857 = event.feature.getGeometry().getCoordinates()
-
     const coordsLV95 = coords3857.map(([x, y]) => webMercatorToLV95(x, y))
 
     emit('draw-line', coordsLV95)
@@ -242,23 +299,39 @@ onMounted(async () => {
   mapInstance.on('singleclick', (event) => {
     if (drawInteraction) return
 
-    let foundSummit = false
+    let handled = false
 
     mapInstance.forEachFeatureAtPixel(event.pixel, (feature) => {
       const summit = feature.get('summit')
       if (summit) {
-        foundSummit = true
+        handled = true
         emit('select-summit', summit)
+        return true
       }
+
+      const props = feature.getProperties()
+      if (
+        props.DEGRE_DANGER != null ||
+        props.degre_danger != null ||
+        props.DANGER != null ||
+        props.NIVEAU_DANGER != null ||
+        props.CLASSE != null
+      ) {
+        handled = true
+        clickedPointSource.clear()
+        showFeaturePopup(event.coordinate, 'avalanche', extractAvalancheData(feature))
+        return true
+      }
+
+      return false
     })
 
-    if (foundSummit) return
+    if (handled) return
 
     const [lon, lat] = toLonLat(event.coordinate)
     const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
 
     const point = { lon, lat, x, y }
-
     emit('map-click', point)
   })
 

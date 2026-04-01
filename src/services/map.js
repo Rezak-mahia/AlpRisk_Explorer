@@ -3,14 +3,18 @@ import View from 'ol/View.js'
 import TileLayer from 'ol/layer/Tile.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import VectorSource from 'ol/source/Vector.js'
+import GeoJSON from 'ol/format/GeoJSON.js'
 import Feature from 'ol/Feature.js'
 import Point from 'ol/geom/Point.js'
 import Overlay from 'ol/Overlay.js'
 import { Style, Circle, Fill, Stroke, Text } from 'ol/style.js'
 import { fromLonLat } from 'ol/proj.js'
-
 import WMTS, { optionsFromCapabilities } from 'ol/source/WMTS.js'
-import WMTSCapabilities from 'ol/format/WMTSCapabilities.js'
+
+import {
+  getSwisstopoWmtsCapabilities,
+  getValaisAvalancheGeoJsonUrl
+} from '../services/geoAdmin.js'
 
 export function createSummitFeature(summit) {
   const coordinates = fromLonLat([summit.lon, summit.lat])
@@ -39,6 +43,73 @@ export function createSummitFeature(summit) {
   return feature
 }
 
+function getAvalancheColors(feature) {
+  const props = feature.getProperties()
+  const danger = Number(
+    props.DEGRE_DANGER ??
+      props.degre_danger ??
+      props.DANGER ??
+      props.NIVEAU_DANGER ??
+      props.CLASSE ??
+      0
+  )
+
+  if (danger === 4) {
+    return {
+      fill: 'rgba(255, 93, 81, 0.70)',
+      stroke: 'rgba(104, 104, 104, 1)'
+    }
+  }
+
+  if (danger === 3) {
+    return {
+      fill: 'rgba(85, 142, 213, 0.70)',
+      stroke: 'rgba(104, 104, 104, 1)'
+    }
+  }
+
+  if (danger === 2) {
+    return {
+      fill: 'rgba(255, 235, 59, 0.70)',
+      stroke: 'rgba(104, 104, 104, 1)'
+    }
+  }
+
+  return {
+    fill: 'rgba(160, 160, 160, 0.35)',
+    stroke: 'rgba(104, 104, 104, 1)'
+  }
+}
+
+function createAvalancheStyle(feature) {
+  const colors = getAvalancheColors(feature)
+
+  return new Style({
+    stroke: new Stroke({
+      color: colors.stroke,
+      width: 1
+    }),
+    fill: new Fill({
+      color: colors.fill
+    })
+  })
+}
+
+function createAvalancheLayer() {
+  const layer = new VectorLayer({
+    source: new VectorSource({
+      url: getValaisAvalancheGeoJsonUrl(),
+      format: new GeoJSON()
+    }),
+    style: createAvalancheStyle
+  })
+
+  layer.set('layerType', 'avalanche')
+  layer.setZIndex(20)
+
+  return layer
+}
+
 export async function buildMap(target, summitFeatures, popupElement) {
   const summitSource = new VectorSource({
     features: summitFeatures
@@ -47,8 +118,9 @@ export async function buildMap(target, summitFeatures, popupElement) {
   const summitLayer = new VectorLayer({
     source: summitSource
   })
-
   summitLayer.setZIndex(100)
+
+  const avalancheLayer = createAvalancheLayer()
 
   const popupOverlay = new Overlay({
     element: popupElement,
@@ -57,17 +129,11 @@ export async function buildMap(target, summitFeatures, popupElement) {
     stopEvent: false
   })
 
-  const parser = new WMTSCapabilities()
-
-  const response = await fetch(
-    'https://wmts.geo.admin.ch/EPSG/3857/1.0.0/WMTSCapabilities.xml'
-  )
-  const text = await response.text()
-  const result = parser.read(text)
+  const capabilities = await getSwisstopoWmtsCapabilities()
 
   const swisstopoLayer = new TileLayer({
     source: new WMTS(
-      optionsFromCapabilities(result, {
+      optionsFromCapabilities(capabilities, {
         layer: 'ch.swisstopo.pixelkarte-farbe',
         matrixSet: 'EPSG:3857'
       })
@@ -76,13 +142,17 @@ export async function buildMap(target, summitFeatures, popupElement) {
 
   const map = new Map({
     target,
-    layers: [swisstopoLayer, summitLayer],
+    layers: [swisstopoLayer, avalancheLayer, summitLayer],
     overlays: [popupOverlay],
     view: new View({
-      center: fromLonLat([8.23, 46.82]),
-      zoom: 8
+      center: fromLonLat([7.45, 46.15]),
+      zoom: 10
     })
   })
 
-  return { map, popupOverlay }
+  return {
+    map,
+    popupOverlay,
+    avalancheLayer
+  }
 }
