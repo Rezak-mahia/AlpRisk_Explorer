@@ -2,172 +2,244 @@
   <div class="profile-container">
     <h2 class="panel-title">Profil d’altitude</h2>
 
-    <p v-if="!selectedSummit" class="panel-empty">
-      Sélectionne un sommet pour afficher le profil.
-    </p>
+    <p v-if="status" class="status">{{ status }}</p>
 
-    <p v-else class="status">
-      <span v-if="drawnLine && drawnLine.length > 1">
-        Profil calculé à partir de la ligne dessinée.
-      </span>
-      <span v-else>
-        Profil automatique autour de <strong>{{ selectedSummit.label }}</strong>.
-        Altitude officielle : {{ selectedSummit.altitude }} m
-      </span>
-    </p>
+    <div v-else-if="profilePoints.length === 0" class="panel-empty">
+      Dessine une ligne sur la carte pour afficher le profil.
+    </div>
 
-    <canvas ref="canvasEl"></canvas>
+    <div v-else class="profile-wrapper">
+      <svg
+        class="profile-svg"
+        :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
+        preserveAspectRatio="none"
+      >
+        <polyline
+          :points="polylinePoints"
+          fill="none"
+          stroke="#2563eb"
+          stroke-width="2"
+        />
 
-    <p v-if="loading" class="status">Chargement du profil…</p>
-    <p v-if="error" class="status">{{ error }}</p>
+        <line
+          :x1="paddingLeft"
+          :x2="paddingLeft"
+          :y1="paddingTop"
+          :y2="svgHeight - paddingBottom"
+          stroke="#9ca3af"
+          stroke-width="1"
+        />
+
+        <line
+          :x1="paddingLeft"
+          :x2="svgWidth - paddingRight"
+          :y1="svgHeight - paddingBottom"
+          :y2="svgHeight - paddingBottom"
+          stroke="#9ca3af"
+          stroke-width="1"
+        />
+
+        <text :x="paddingLeft" :y="paddingTop - 6" font-size="11" fill="#374151">
+          {{ Math.round(maxElevation) }} m
+        </text>
+
+        <text
+          :x="paddingLeft"
+          :y="svgHeight - paddingBottom + 16"
+          font-size="11"
+          fill="#374151"
+        >
+          0 km
+        </text>
+
+        <text
+          :x="svgWidth - paddingRight - 42"
+          :y="svgHeight - paddingBottom + 16"
+          font-size="11"
+          fill="#374151"
+        >
+          {{ totalDistanceKm.toFixed(1) }} km
+        </text>
+      </svg>
+
+      <div class="profile-meta">
+        <span class="badge">Distance : {{ totalDistanceKm.toFixed(2) }} km</span>
+        <span class="badge">Min : {{ Math.round(minElevation) }} m</span>
+        <span class="badge">Max : {{ Math.round(maxElevation) }} m</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, watch } from 'vue'
-import Chart from 'chart.js/auto'
+import { computed, ref, watch } from 'vue'
 import { getElevationProfile } from '../services/geoAdmin.js'
-import { lonLatToLV95 } from '../services/projection.js'
 
 const props = defineProps({
-  selectedSummit: {
-    type: Object,
-    default: null
-  },
-  drawnLine: {
+  lineCoordinates: {
     type: Array,
     default: null
   }
 })
 
-const canvasEl = ref(null)
-const loading = ref(false)
-const error = ref('')
-let chart = null
+const status = ref('')
+const profilePoints = ref([])
 
-function destroyChart() {
-  if (chart) {
-    chart.destroy()
-    chart = null
-  }
-}
+const svgWidth = 900
+const svgHeight = 220
+const paddingLeft = 36
+const paddingRight = 12
+const paddingTop = 18
+const paddingBottom = 30
 
-function construireLigneAutomatique(summit) {
-  const summitLV95 = lonLatToLV95(summit.lon, summit.lat)
-
-  const dx = summitLV95.x - summit.startX
-  const dy = summitLV95.y - summit.startY
-  const dirLength = Math.sqrt(dx * dx + dy * dy)
-
-  if (!dirLength || !isFinite(dirLength)) {
-    throw new Error('Direction du profil invalide')
-  }
-
-  const ux = dx / dirLength
-  const uy = dy / dirLength
-  const halfDistance = 2000
-
-  const start = [
-    summitLV95.x - ux * halfDistance,
-    summitLV95.y - uy * halfDistance
-  ]
-
-  const summitPoint = [summitLV95.x, summitLV95.y]
-
-  const end = [
-    summitLV95.x + ux * halfDistance,
-    summitLV95.y + uy * halfDistance
-  ]
-
-  return [start, summitPoint, end]
-}
-
-async function chargerProfil() {
-  destroyChart()
-  error.value = ''
-
-  const summit = props.selectedSummit
-  if (!summit) return
-
-  loading.value = true
-
-  try {
-    const line =
-      props.drawnLine && props.drawnLine.length > 1
-        ? props.drawnLine
-        : construireLigneAutomatique(summit)
-
-    const profile = await getElevationProfile(line, 400)
-
-    if (!profile || profile.length === 0) {
-      throw new Error('Aucune donnée de profil reçue')
-    }
-
-    const labels = profile.map((p) => Math.round(p.dist))
-    const elevations = profile.map((p) => p.alts?.COMB ?? null)
-
-    await nextTick()
-
-    chart = new Chart(canvasEl.value, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Profil terrain (m)',
-            data: elevations,
-            tension: 0.2,
-            pointRadius: 0
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: {
-            title: {
-              display: true,
-              text: 'Distance (m)'
-            }
-          },
-          y: {
-            beginAtZero: false,
-            title: {
-              display: true,
-              text: 'Altitude (m)'
-            }
-          }
-        }
-      }
-    })
-  } catch (e) {
-    console.error(e)
-    error.value = e.message || 'Erreur lors du chargement du profil'
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => {
-  chargerProfil()
+const minElevation = computed(() => {
+  if (!profilePoints.value.length) return 0
+  return Math.min(...profilePoints.value.map((p) => p.elevation))
 })
 
+const maxElevation = computed(() => {
+  if (!profilePoints.value.length) return 0
+  return Math.max(...profilePoints.value.map((p) => p.elevation))
+})
+
+const totalDistance = computed(() => {
+  if (!profilePoints.value.length) return 0
+  return profilePoints.value[profilePoints.value.length - 1].distance
+})
+
+const totalDistanceKm = computed(() => totalDistance.value / 1000)
+
+const polylinePoints = computed(() => {
+  if (!profilePoints.value.length) return ''
+
+  const usableWidth = svgWidth - paddingLeft - paddingRight
+  const usableHeight = svgHeight - paddingTop - paddingBottom
+  const elevRange = Math.max(maxElevation.value - minElevation.value, 1)
+  const distRange = Math.max(totalDistance.value, 1)
+
+  return profilePoints.value
+    .map((point) => {
+      const x = paddingLeft + (point.distance / distRange) * usableWidth
+      const y =
+        paddingTop +
+        (1 - (point.elevation - minElevation.value) / elevRange) * usableHeight
+      return `${x},${y}`
+    })
+    .join(' ')
+})
+
+function getElevationFromPoint(point) {
+  return Number(
+    point.altitude ??
+      point.z ??
+      point.combined ??
+      point.elevation ??
+      point.alts?.COMB ??
+      point.ALTITUDE ??
+      0
+  )
+}
+
+function getDistanceFromPoint(point) {
+  return Number(
+    point.dist ??
+      point.distance ??
+      point.DISTANCE ??
+      point.m ??
+      0
+  )
+}
+
+function normalizeProfileResult(result) {
+  if (!Array.isArray(result) || result.length === 0) {
+    return []
+  }
+
+  let previousX = null
+  let previousY = null
+  let runningDistance = 0
+
+  return result.map((point, index) => {
+    const x = Number(point.easting ?? point.x ?? point.X ?? 0)
+    const y = Number(point.northing ?? point.y ?? point.Y ?? 0)
+    const elevation = getElevationFromPoint(point)
+
+    let distance = getDistanceFromPoint(point)
+
+    if (!distance && index > 0 && previousX != null && previousY != null) {
+      const dx = x - previousX
+      const dy = y - previousY
+      runningDistance += Math.sqrt(dx * dx + dy * dy)
+      distance = runningDistance
+    } else if (distance) {
+      runningDistance = distance
+    }
+
+    previousX = x
+    previousY = y
+
+    return {
+      distance,
+      elevation
+    }
+  })
+}
+
+async function loadProfile(lineCoordinates) {
+  if (!lineCoordinates || lineCoordinates.length < 2) {
+    profilePoints.value = []
+    status.value = ''
+    return
+  }
+
+  try {
+    status.value = 'Chargement du profil...'
+    const result = await getElevationProfile(lineCoordinates, 400)
+    profilePoints.value = normalizeProfileResult(result)
+    status.value = ''
+  } catch (error) {
+    console.error(error)
+    profilePoints.value = []
+    status.value = "Erreur lors du chargement du profil d'altitude"
+  }
+}
+
 watch(
-  [() => props.selectedSummit, () => props.drawnLine],
-  chargerProfil,
-  { deep: true }
+  () => props.lineCoordinates,
+  (line) => {
+    loadProfile(line)
+  },
+  { deep: true, immediate: true }
 )
 </script>
 
 <style scoped>
 .profile-container {
-  position: relative;
-  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
-canvas {
-  width: 100% !important;
-  height: 170px !important;
+.profile-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-svg {
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 </style>

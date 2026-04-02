@@ -18,8 +18,6 @@
         <strong>Zone d’avalanche</strong>
         <div v-if="popupData?.dangerLabel">Danger : {{ popupData.dangerLabel }}</div>
         <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
-        <div v-if="popupData?.process">Processus : {{ popupData.process }}</div>
-        <div v-if="popupData?.indicative">Danger indicatif : {{ popupData.indicative }}</div>
         <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
       </template>
 
@@ -35,6 +33,7 @@
 <script setup>
 import { onMounted, ref, watch, nextTick } from 'vue'
 import { fromLonLat, toLonLat } from 'ol/proj.js'
+import { getCenter } from 'ol/extent'
 import Feature from 'ol/Feature.js'
 import Point from 'ol/geom/Point.js'
 import LineString from 'ol/geom/LineString.js'
@@ -67,7 +66,13 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select-summit', 'map-click', 'draw-line'])
+const emit = defineEmits([
+  'select-summit',
+  'map-click',
+  'draw-line',
+  'select-avalanche',
+  'center-valais'
+])
 
 const mapEl = ref(null)
 const popupEl = ref(null)
@@ -98,19 +103,15 @@ function dangerLabelFromValue(value) {
   if (n === 4) return 'élevé'
   if (n === 3) return 'moyen'
   if (n === 2) return 'faible'
+  if (n === 1) return 'résiduel'
+  if (n === 5) return 'indicatif'
+  if (n === 0) return 'non exposé'
   return `${value ?? ''}`
 }
 
 function extractAvalancheData(feature) {
   const props = feature.getProperties()
-
-  const danger =
-    props.DEGRE_DANGER ??
-    props.degre_danger ??
-    props.DANGER ??
-    props.NIVEAU_DANGER ??
-    props.CLASSE ??
-    null
+  const danger = props.DEGRE_DANGER ?? null
 
   return {
     dangerValue: danger,
@@ -121,22 +122,25 @@ function extractAvalancheData(feature) {
       props.COMMUNE_NOM ||
       props.COMMNAME ||
       null,
-    process:
-      props.PROCESSUS ||
-      props.PROCESS ||
-      props.PROZESS ||
-      props.TYPE ||
-      null,
-    indicative:
-      props.DANGER_INDICATIF ||
-      props.INDICATIF ||
-      props.INDICATIVE ||
-      null,
     id:
       props.OBJECTID ||
       props.FID ||
       props.ID ||
       null
+  }
+}
+
+function buildSelectedAvalanchePayload(feature) {
+  const data = extractAvalancheData(feature)
+  const geometry = feature.getGeometry()
+  const extent = geometry.getExtent()
+  const center3857 = getCenter(extent)
+  const [lon, lat] = toLonLat(center3857)
+
+  return {
+    ...data,
+    lon,
+    lat
   }
 }
 
@@ -175,8 +179,10 @@ function showSummitOnMap(summit) {
 function centrerValais() {
   if (!mapInstance) return
 
+  const center = fromLonLat([7.45, 46.15])
+
   mapInstance.getView().animate({
-    center: fromLonLat([7.45, 46.15]),
+    center,
     zoom: 10,
     duration: 700
   })
@@ -185,6 +191,12 @@ function centrerValais() {
   popupData.value = null
   popupMode.value = null
   popupOverlay?.setPosition(undefined)
+
+  emit('center-valais', {
+    lon: 7.45,
+    lat: 46.15,
+    height: 180000
+  })
 }
 
 function mettreAJourProfilLigne(line) {
@@ -310,16 +322,14 @@ onMounted(async () => {
       }
 
       const props = feature.getProperties()
-      if (
-        props.DEGRE_DANGER != null ||
-        props.degre_danger != null ||
-        props.DANGER != null ||
-        props.NIVEAU_DANGER != null ||
-        props.CLASSE != null
-      ) {
+      if (props.DEGRE_DANGER != null) {
         handled = true
         clickedPointSource.clear()
-        showFeaturePopup(event.coordinate, 'avalanche', extractAvalancheData(feature))
+
+        const avalancheData = buildSelectedAvalanchePayload(feature)
+        showFeaturePopup(event.coordinate, 'avalanche', avalancheData)
+        emit('select-avalanche', avalancheData)
+
         return true
       }
 

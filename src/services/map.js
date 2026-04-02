@@ -13,7 +13,7 @@ import WMTS, { optionsFromCapabilities } from 'ol/source/WMTS.js'
 
 import {
   getSwisstopoWmtsCapabilities,
-  getValaisAvalancheGeoJsonUrl
+  fetchAllValaisAvalancheGeoJson
 } from '../services/geoAdmin.js'
 
 export function createSummitFeature(summit) {
@@ -43,64 +43,92 @@ export function createSummitFeature(summit) {
   return feature
 }
 
-function getAvalancheColors(feature) {
+function getAvalancheStyleInfo(feature) {
   const props = feature.getProperties()
-  const danger = Number(
-    props.DEGRE_DANGER ??
-      props.degre_danger ??
-      props.DANGER ??
-      props.NIVEAU_DANGER ??
-      props.CLASSE ??
-      0
-  )
+  const danger = Number(props.DEGRE_DANGER ?? 0)
 
   if (danger === 4) {
     return {
       fill: 'rgba(255, 93, 81, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)'
+      stroke: 'rgba(104, 104, 104, 1)',
+      lineDash: undefined
     }
   }
 
   if (danger === 3) {
     return {
       fill: 'rgba(85, 142, 213, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)'
+      stroke: 'rgba(104, 104, 104, 1)',
+      lineDash: undefined
     }
   }
 
   if (danger === 2) {
     return {
-      fill: 'rgba(255, 235, 59, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)'
+      fill: 'rgba(255, 248, 103, 0.70)',
+      stroke: 'rgba(104, 104, 104, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      fill: 'rgba(255, 248, 103, 0.35)',
+      stroke: 'rgba(255, 248, 103, 1)',
+      lineDash: [6, 6]
+    }
+  }
+
+  if (danger === 5) {
+    return {
+      fill: 'rgba(255, 170, 0, 0.70)',
+      stroke: 'rgba(104, 104, 104, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 0) {
+    return {
+      fill: 'rgba(255, 255, 255, 0.20)',
+      stroke: 'rgba(104, 104, 104, 0.6)',
+      lineDash: undefined
     }
   }
 
   return {
     fill: 'rgba(160, 160, 160, 0.35)',
-    stroke: 'rgba(104, 104, 104, 1)'
+    stroke: 'rgba(104, 104, 104, 1)',
+    lineDash: undefined
   }
 }
 
 function createAvalancheStyle(feature) {
-  const colors = getAvalancheColors(feature)
+  const info = getAvalancheStyleInfo(feature)
 
   return new Style({
     stroke: new Stroke({
-      color: colors.stroke,
-      width: 1
+      color: info.stroke,
+      width: 1,
+      lineDash: info.lineDash
     }),
     fill: new Fill({
-      color: colors.fill
+      color: info.fill
     })
   })
 }
 
-function createAvalancheLayer() {
+async function createAvalancheLayer() {
+  const geojson = await fetchAllValaisAvalancheGeoJson()
+
+  const source = new VectorSource({
+    features: new GeoJSON().readFeatures(geojson, {
+      dataProjection: 'EPSG:4326',
+      featureProjection: 'EPSG:3857'
+    })
+  })
+
   const layer = new VectorLayer({
-    source: new VectorSource({
-      url: getValaisAvalancheGeoJsonUrl(),
-      format: new GeoJSON()
-    }),
+    source,
     style: createAvalancheStyle
   })
 
@@ -120,7 +148,7 @@ export async function buildMap(target, summitFeatures, popupElement) {
   })
   summitLayer.setZIndex(100)
 
-  const avalancheLayer = createAvalancheLayer()
+  const avalancheLayer = await createAvalancheLayer()
 
   const popupOverlay = new Overlay({
     element: popupElement,

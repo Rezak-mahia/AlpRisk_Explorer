@@ -1,76 +1,103 @@
 <template>
   <div class="app-layout">
-    <SummitSidebar
-      :summits="summits"
-      :selected-summit="selectedSummit"
-      @select-summit="selectSummit"
-    />
+    <aside class="sidebar">
+      <SummitSidebar
+        :summits="summits"
+        :selected-summit="selectedSummit"
+        @select-summit="handleSelectSummit"
+      />
+    </aside>
 
     <main class="main-panel">
-      <div class="left-panel">
+      <section class="left-panel">
         <MapView
           :summits="summits"
           :selected-summit="selectedSummit"
           :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
-          @select-summit="selectSummit"
-          @map-click="setClickedPoint"
-          @draw-line="setDrawnLine"
+          @select-summit="handleSelectSummit"
+          @map-click="handleMapClick"
+          @draw-line="handleDrawLine"
+          @select-avalanche="handleSelectAvalanche"
+          @center-valais="handleCenterValais"
         />
 
-        <ElevationProfile
-          :key="profileVersion"
-          :selected-summit="selectedSummit"
-          :drawn-line="drawnLine"
-        />
-      </div>
+        <ElevationProfile :line-coordinates="drawnLine" />
+      </section>
 
-      <div class="right-panel">
+      <section class="right-panel">
         <ThreeDView
           :selected-summit="selectedSummit"
           :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
+          :selected-avalanche="selectedAvalanche"
+          :centered-region="centeredRegion"
         />
-      </div>
+      </section>
     </main>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import SummitSidebar from './components/SummitSidebar.vue'
+import { ref, onMounted } from 'vue'
 import MapView from './components/MapView.vue'
 import ThreeDView from './components/ThreeDView.vue'
+import SummitSidebar from './components/SummitSidebar.vue'
 import ElevationProfile from './components/ElevationProfile.vue'
 
 const summits = ref([])
 const selectedSummit = ref(null)
 const clickedPoint = ref(null)
 const drawnLine = ref(null)
-const profileVersion = ref(0)
+const selectedAvalanche = ref(null)
+const centeredRegion = ref(null)
 
-function selectSummit(summit) {
+async function loadSummits() {
+  try {
+    const response = await fetch('/summits.json')
+    if (!response.ok) {
+      throw new Error('Erreur lors du chargement de summits.json')
+    }
+    summits.value = await response.json()
+  } catch (error) {
+    console.error(error)
+    summits.value = []
+  }
+}
+
+function handleSelectSummit(summit) {
   selectedSummit.value = summit
   clickedPoint.value = null
-  drawnLine.value = null
-  profileVersion.value += 1
+  selectedAvalanche.value = null
+  centeredRegion.value = null
 }
 
-function setClickedPoint(point) {
+function handleMapClick(point) {
   clickedPoint.value = point
+  selectedSummit.value = null
+  selectedAvalanche.value = null
+  centeredRegion.value = null
 }
 
-function setDrawnLine(line) {
-  drawnLine.value = [...line]
-  profileVersion.value += 1
+function handleDrawLine(line) {
+  drawnLine.value = line
 }
 
-onMounted(async () => {
-  const response = await fetch('/summits.json')
-  summits.value = await response.json()
+function handleSelectAvalanche(avalanche) {
+  selectedAvalanche.value = avalanche
+  selectedSummit.value = null
+  clickedPoint.value = null
+  centeredRegion.value = null
+}
 
-  if (summits.value.length > 0) {
-    selectedSummit.value = summits.value[0]
-  }
+function handleCenterValais(region) {
+  centeredRegion.value = region
+  selectedSummit.value = null
+  clickedPoint.value = null
+  selectedAvalanche.value = null
+}
+
+onMounted(() => {
+  loadSummits()
 })
 </script>

@@ -8,8 +8,6 @@
       <strong>Zone d’avalanche</strong>
       <div v-if="pickedInfo.dangerLabel">Danger : {{ pickedInfo.dangerLabel }}</div>
       <div v-if="pickedInfo.commune">Commune : {{ pickedInfo.commune }}</div>
-      <div v-if="pickedInfo.process">Processus : {{ pickedInfo.process }}</div>
-      <div v-if="pickedInfo.indicative">Danger indicatif : {{ pickedInfo.indicative }}</div>
       <div v-if="pickedInfo.id">Identifiant : {{ pickedInfo.id }}</div>
     </div>
   </div>
@@ -28,13 +26,14 @@ import {
   HeightReference,
   GeoJsonDataSource,
   ScreenSpaceEventHandler,
-  ScreenSpaceEventType
+  ScreenSpaceEventType,
+  ClassificationType
 } from 'cesium'
 import { lv95ToLonLat } from '../services/projection.js'
 import {
   SWISSTOPO_TERRAIN_URL,
   CESIUM_ION_TOKEN,
-  getValaisAvalancheGeoJsonUrl
+  fetchAllValaisAvalancheGeoJson
 } from '../services/geoAdmin.js'
 
 const props = defineProps({
@@ -48,6 +47,14 @@ const props = defineProps({
   },
   drawnLine: {
     type: Array,
+    default: null
+  },
+  selectedAvalanche: {
+    type: Object,
+    default: null
+  },
+  centeredRegion: {
+    type: Object,
     default: null
   }
 })
@@ -67,6 +74,9 @@ function dangerLabelFromValue(value) {
   if (n === 4) return 'élevé'
   if (n === 3) return 'moyen'
   if (n === 2) return 'faible'
+  if (n === 1) return 'résiduel'
+  if (n === 5) return 'indicatif'
+  if (n === 0) return 'non exposé'
   return `${value ?? ''}`
 }
 
@@ -81,13 +91,7 @@ function extractAvalancheDataFromEntity(entity) {
     return value ?? null
   }
 
-  const danger =
-    read('DEGRE_DANGER') ||
-    read('degre_danger') ||
-    read('DANGER') ||
-    read('NIVEAU_DANGER') ||
-    read('CLASSE') ||
-    null
+  const danger = read('DEGRE_DANGER')
 
   return {
     dangerValue: danger,
@@ -98,22 +102,7 @@ function extractAvalancheDataFromEntity(entity) {
       read('COMMUNE_NOM') ||
       read('COMMNAME') ||
       null,
-    process:
-      read('PROCESSUS') ||
-      read('PROCESS') ||
-      read('PROZESS') ||
-      read('TYPE') ||
-      null,
-    indicative:
-      read('DANGER_INDICATIF') ||
-      read('INDICATIF') ||
-      read('INDICATIVE') ||
-      null,
-    id:
-      read('OBJECTID') ||
-      read('FID') ||
-      read('ID') ||
-      null
+    id: read('OBJECTID') || read('FID') || read('ID') || null
   }
 }
 
@@ -137,8 +126,29 @@ function getCesiumAvalancheStyle(entity) {
 
   if (danger === 2) {
     return {
-      material: Color.fromBytes(255, 235, 59, 178),
+      material: Color.fromBytes(255, 248, 103, 178),
       outline: Color.fromBytes(104, 104, 104, 255)
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      material: Color.fromBytes(255, 248, 103, 100),
+      outline: Color.fromBytes(255, 248, 103, 255)
+    }
+  }
+
+  if (danger === 5) {
+    return {
+      material: Color.fromBytes(255, 170, 0, 178),
+      outline: Color.fromBytes(104, 104, 104, 255)
+    }
+  }
+
+  if (danger === 0) {
+    return {
+      material: Color.fromBytes(255, 255, 255, 70),
+      outline: Color.fromBytes(104, 104, 104, 150)
     }
   }
 
@@ -156,7 +166,7 @@ function styliserAvalanches(dataSource) {
     entity.polygon.material = style.material
     entity.polygon.outline = true
     entity.polygon.outlineColor = style.outline
-    entity.polygon.classificationType = 2
+    entity.polygon.classificationType = ClassificationType.BOTH
   }
 }
 
@@ -189,8 +199,44 @@ function seDeplacerVers(lon, lat, label = 'Point') {
   })
 }
 
+function seDeplacerVersAvalanche(avalanche) {
+  if (!viewer || !avalanche) return
+
+  viewer.camera.flyTo({
+    destination: Cartesian3.fromDegrees(avalanche.lon, avalanche.lat, 9000),
+    duration: 2.5
+  })
+
+  pickedInfo.value = avalanche
+}
+
+function seDeplacerVersRegion(region) {
+  if (!viewer || !region) return
+
+  viewer.camera.flyTo({
+    destination: Cartesian3.fromDegrees(
+      region.lon,
+      region.lat,
+      region.height || 180000
+    ),
+    duration: 2.5
+  })
+
+  pickedInfo.value = null
+}
+
 function mettreAJourPointActif() {
   if (!viewer) return
+
+  if (props.centeredRegion) {
+    seDeplacerVersRegion(props.centeredRegion)
+    return
+  }
+
+  if (props.selectedAvalanche) {
+    seDeplacerVersAvalanche(props.selectedAvalanche)
+    return
+  }
 
   if (props.clickedPoint) {
     seDeplacerVers(
@@ -238,12 +284,11 @@ function mettreAJourLigneProfil3D(line) {
 async function chargerAvalanches3D() {
   if (!viewer) return
 
-  avalancheDataSource = await GeoJsonDataSource.load(
-    getValaisAvalancheGeoJsonUrl(),
-    {
-      clampToGround: true
-    }
-  )
+  const geojson = await fetchAllValaisAvalancheGeoJson()
+
+  avalancheDataSource = await GeoJsonDataSource.load(geojson, {
+    clampToGround: true
+  })
 
   styliserAvalanches(avalancheDataSource)
   viewer.dataSources.add(avalancheDataSource)
@@ -264,7 +309,7 @@ function installerClickInfo3D() {
     if (!entity?.properties) return
 
     const info = extractAvalancheDataFromEntity(entity)
-    if (!info.dangerValue) return
+    if (info.dangerValue == null) return
 
     pickedInfo.value = info
   }, ScreenSpaceEventType.LEFT_CLICK)
@@ -306,7 +351,12 @@ onMounted(async () => {
 })
 
 watch(
-  [() => props.selectedSummit, () => props.clickedPoint],
+  [
+    () => props.selectedSummit,
+    () => props.clickedPoint,
+    () => props.selectedAvalanche,
+    () => props.centeredRegion
+  ],
   () => {
     mettreAJourPointActif()
   },
