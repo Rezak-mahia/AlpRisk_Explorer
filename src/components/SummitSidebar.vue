@@ -2,12 +2,8 @@
   <aside class="sidebar">
     <h1 class="title">Analyse des dangers naturels en Valais</h1>
     
+    <!-- Section 1: Bulle "Choisir un point d'intérêt" -->
     <div class="info-box">
-      <p>📍 <strong>Choisir une couche :</strong></p>
-      <ul>
-        <li>Choisissez un danger naturel dans le menu déroulant</li>
-        <li>Les zones d’avalanche,  de glissement ou d'hydrologie s’afficheront sur la carte</li>
-      </ul>
       <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
       <ul>
         <li>Saisissez des coordonnées <strong>MN95</strong></li>
@@ -15,18 +11,7 @@
       </ul>
     </div>
 
-    <div class="layer-select-section">
-      <h2 class="section-label">Couche de danger naturel</h2>
-      <select v-model="selectedLayerId" @change="selectDangerLayer">
-        <option v-for="layer in dangerLayers" :key="layer.id" :value="layer.id">
-          {{ layer.label }}
-        </option>
-      </select>
-      <div class="current-layer-box">
-        Couche sélectionnée : <strong>{{ selectedLayerLabel }}</strong>
-      </div>
-    </div>
-
+    <!-- Section 2: Recherche MN95 -->
     <div class="mn95-section">
       <h2 class="section-label">Recherche MN95 (LV95)</h2>
       <div class="input-grid">
@@ -40,6 +25,25 @@
         </div>
       </div>
       <button class="btn-primary" @click="goToMN95">Localiser la saisie</button>
+    </div>
+
+    <!-- Section 3: Bulle "Choisir une couche" -->
+    <div class="info-box">
+      <p>📍 <strong>Choisir une couche :</strong></p>
+      <ul>
+        <li>Choisissez un danger naturel dans le menu déroulant</li>
+        <li>Les zones d'avalanche, de glissement ou d'hydrologie s'afficheront sur la carte</li>
+      </ul>
+    </div>
+
+    <!-- Section 4: Sélection de la couche de danger -->
+    <div class="layer-select-section">
+      <h2 class="section-label">Couche de danger naturel</h2>
+      <select v-model="selectedLayerId" @change="selectDangerLayer">
+        <option v-for="layer in dangerLayers" :key="layer.id" :value="layer.id">
+          {{ layer.label }}
+        </option>
+      </select>
     </div>
 
     <hr class="divider" />
@@ -56,6 +60,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['select-summit', 'select-danger-layer'])
+
 const dangerLayers = [
   { id: 'avalanche', label: 'Avalanche' },
   { id: 'glissement', label: 'Glissement' },
@@ -63,9 +68,6 @@ const dangerLayers = [
 ]
 
 const selectedLayerId = ref(props.selectedDangerLayer || dangerLayers[0].id)
-const selectedLayerLabel = computed(() => {
-  return dangerLayers.find(layer => layer.id === selectedLayerId.value)?.label || ''
-})
 
 watch(
   () => props.selectedDangerLayer,
@@ -104,32 +106,135 @@ function goToMN95() {
 </script>
 
 <style scoped>
-.sidebar { width: 300px; padding: 20px; background: #f8fafc; height: 100vh; overflow-y: auto; border-right: 1px solid #e2e8f0; }
-.title { font-size: 1.4rem; margin-bottom: 15px; color: #1e293b; font-weight: bold; }
-.info-box { background: #f1f5f9; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; color: #475569; border: 1px solid #e2e8f0; }
-.info-box ul { margin: 5px 0 0 18px; padding: 0; }
-.mn95-section { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
-.section-label { font-size: 0.7rem; text-transform: uppercase; color: #64748b; margin-bottom: 10px; font-weight: 600; }
-.input-grid { display: flex; gap: 8px; margin-bottom: 10px; }
-.field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-.field label { font-size: 0.65rem; color: #94a3b8; font-weight: bold; }
-.field input { width: 100%; padding: 8px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 4px; }
-.layer-select-section { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
-.layer-select-section .section-label { display: block; margin-bottom: 8px; font-size: 0.75rem; color: #64748b; font-weight: 600; }
-.layer-select-section select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.95rem; }
-.current-layer-box { margin-top: 12px; background: #eff6ff; color: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #dbeafe; }
+.sidebar {
+  width: 300px;
+  padding: 20px;
+  background: #f8fafc;
+  height: 100vh;
+  overflow: hidden;
+  border-right: 1px solid #e2e8f0;
+}
 
-/* --- SUPPRESSION DES FLÈCHES (SPINNERS) --- */
+.title {
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+  color: #1e293b;
+  font-weight: bold;
+}
+
+.info-box {
+  background: #f1f5f9;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.info-box ul {
+  margin: 5px 0 0 18px;
+  padding: 0;
+}
+
+.mn95-section {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.section-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.input-grid {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.field label {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  font-weight: bold;
+}
+
+.field input {
+  width: 100%;
+  padding: 8px;
+  font-size: 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+}
+
+.layer-select-section {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 20px;
+}
+
+.layer-select-section .section-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.layer-select-section select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+/* Suppression des flèches (spinners) pour les inputs number */
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;
   appearance: none;
   margin: 0;
 }
+
 .no-spinner {
   appearance: textfield;
-  -moz-appearance: textfield; /* Pour Firefox */
+  -moz-appearance: textfield;
 }
 
-.btn-primary { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+.btn-primary {
+  width: 100%;
+  padding: 10px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 20px 0;
+}
 </style>
