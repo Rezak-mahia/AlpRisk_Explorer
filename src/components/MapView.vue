@@ -311,33 +311,6 @@ onMounted(async () => {
   mapInstance.on('singleclick', (event) => {
     if (drawInteraction) return
 
-    let handled = false
-
-    mapInstance.forEachFeatureAtPixel(event.pixel, (feature) => {
-      const summit = feature.get('summit')
-      if (summit) {
-        handled = true
-        emit('select-summit', summit)
-        return true
-      }
-
-      const props = feature.getProperties()
-      if (props.DEGRE_DANGER != null) {
-        handled = true
-        clickedPointSource.clear()
-
-        const avalancheData = buildSelectedAvalanchePayload(feature)
-        showFeaturePopup(event.coordinate, 'avalanche', avalancheData)
-        emit('select-avalanche', avalancheData)
-
-        return true
-      }
-
-      return false
-    })
-
-    if (handled) return
-
     const [lon, lat] = toLonLat(event.coordinate)
     const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
 
