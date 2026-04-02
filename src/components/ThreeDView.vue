@@ -52,10 +52,6 @@ const props = defineProps({
   selectedAvalanche: {
     type: Object,
     default: null
-  },
-  centeredRegion: {
-    type: Object,
-    default: null
   }
 })
 
@@ -210,28 +206,9 @@ function seDeplacerVersAvalanche(avalanche) {
   pickedInfo.value = avalanche
 }
 
-function seDeplacerVersRegion(region) {
-  if (!viewer || !region) return
-
-  viewer.camera.flyTo({
-    destination: Cartesian3.fromDegrees(
-      region.lon,
-      region.lat,
-      region.height || 180000
-    ),
-    duration: 2.5
-  })
-
-  pickedInfo.value = null
-}
 
 function mettreAJourPointActif() {
   if (!viewer) return
-
-  if (props.centeredRegion) {
-    seDeplacerVersRegion(props.centeredRegion)
-    return
-  }
 
   if (props.selectedAvalanche) {
     seDeplacerVersAvalanche(props.selectedAvalanche)
@@ -354,8 +331,7 @@ watch(
   [
     () => props.selectedSummit,
     () => props.clickedPoint,
-    () => props.selectedAvalanche,
-    () => props.centeredRegion
+    () => props.selectedAvalanche
   ],
   () => {
     mettreAJourPointActif()
