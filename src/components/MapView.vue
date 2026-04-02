@@ -2,250 +2,253 @@
   <div class="map-container">
     <h2 class="panel-title">Carte des dangers naturels en Valais</h2>
     <div class="map-toolbar">
-      <button @click="centrerValais">Centrer sur le Valais</button>
+      <button @click="centrerSurValais">Centrer sur le Valais</button>
     </div>
 
-    <div ref="mapEl" class="map"></div>
+    <div ref="elementCarte" class="map"></div>
 
-    <div ref="popupEl" class="map-popup" v-show="popupVisible">
-      <template v-if="popupMode === 'summit'">
-        <strong>{{ popupData?.label }}</strong>
-        <div>{{ popupData?.altitude ?? '—' }} m</div>
-        <div>{{ popupData?.canton }}</div>
-      </template>
-
-      <template v-else-if="popupMode === 'avalanche'">
+    <div ref="elementPopup" class="map-popup" v-show="popupVisible">
+      <template v-if="modePopup === 'avalanche'">
         <strong>Zone d’avalanche</strong>
-        <div v-if="popupData?.dangerLabel">Danger : {{ popupData.dangerLabel }}</div>
-        <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
-        <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
+        <div v-if="donneesPopup?.libelleDanger">Danger : {{ donneesPopup.libelleDanger }}</div>
+        <div v-if="donneesPopup?.commune">Commune : {{ donneesPopup.commune }}</div>
+        <div v-if="donneesPopup?.identifiant">Identifiant : {{ donneesPopup.identifiant }}</div>
       </template>
 
-      <template v-else-if="popupMode === 'point'">
+      <template v-else-if="modePopup === 'point'">
         <strong>Point sélectionné</strong>
-        <div>E : {{ Math.round(popupData?.x || 0) }}</div>
-        <div>N : {{ Math.round(popupData?.y || 0) }}</div>
+        <div>E : {{ Math.round(donneesPopup?.x || 0) }}</div>
+        <div>N : {{ Math.round(donneesPopup?.y || 0) }}</div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch, nextTick } from 'vue'
-import { fromLonLat, toLonLat } from 'ol/proj.js'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { getCenter } from 'ol/extent'
 import Feature from 'ol/Feature.js'
 import Point from 'ol/geom/Point.js'
-import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
-import { Style, Stroke, Circle, Fill } from 'ol/style.js'
-import { buildMap } from '../services/map.js'
-import {
-  webMercatorToLV95,
-  lv95ToWebMercator
-} from '../services/projection.js'
+import VectorSource from 'ol/source/Vector.js'
+import { fromLonLat, toLonLat } from 'ol/proj.js'
+import { Circle as CercleStyle, Fill, Stroke, Style } from 'ol/style.js'
+import { unByKey } from 'ol/Observable.js'
+import { extraireInfosAvalanche } from '../services/avalanche.js'
+import { buildMap as construireCarte } from '../services/map.js'
+import { webMercatorToLV95 } from '../services/projection.js'
 
 const props = defineProps({
-  summits: {
-    type: Array,
-    required: true
-  },
-  selectedSummit: {
-    type: Object,
-    default: null
-  },
-  selectedDangerLayer: {
+  coucheDangerSelectionnee: {
     type: String,
     default: null
   },
-  clickedPoint: {
+  pointSelectionne: {
     type: Object,
     default: null
   }
 })
 
-const emit = defineEmits([
-  'map-click',
-  'select-avalanche'
-])
+const emit = defineEmits(['carte-cliquee', 'selectionner-avalanche'])
 
-const mapEl = ref(null)
-const popupEl = ref(null)
+const elementCarte = ref(null)
+const elementPopup = ref(null)
 const popupVisible = ref(false)
-const popupData = ref(null)
-const popupMode = ref(null)
+const donneesPopup = ref(null)
+const modePopup = ref(null)
 
-let mapInstance = null
-let popupOverlay = null
-let mapReady = false
-let avalancheLayer = null
+let carte = null
+let superpositionPopup = null
+let coucheAvalanches = null
+let sourcePointSelectionne = null
+let couchePointSelectionne = null
+let ecouteurClicCarte = null
 
-let clickedPointSource = null
-let clickedPointLayer = null
-
-function dangerLabelFromValue(value) {
-  const n = Number(value)
-  if (n === 4) return 'élevé'
-  if (n === 3) return 'moyen'
-  if (n === 2) return 'faible'
-  if (n === 1) return 'résiduel'
-  if (n === 5) return 'indicatif'
-  if (n === 0) return 'non exposé'
-  return `${value ?? ''}`
+function fermerPopup() {
+  popupVisible.value = false
+  donneesPopup.value = null
+  modePopup.value = null
+  superpositionPopup?.setPosition(undefined)
 }
 
-function extractAvalancheData(feature) {
-  const props = feature.getProperties()
-  const danger = props.DEGRE_DANGER ?? null
+function afficherPopup(coordonnee, mode, donnees) {
+  if (!superpositionPopup) return
+
+  popupVisible.value = true
+  modePopup.value = mode
+  donneesPopup.value = donnees
+  superpositionPopup.setPosition(coordonnee)
+}
+
+function construireDonneesPoint(coordonneeCarte) {
+  const [lon, lat] = toLonLat(coordonneeCarte)
+  const [est, nord] = webMercatorToLV95(coordonneeCarte[0], coordonneeCarte[1])
 
   return {
-    dangerValue: danger,
-    dangerLabel: dangerLabelFromValue(danger),
-    commune:
-      props.COMMUNE ||
-      props.NOM_COMMUNE ||
-      props.COMMUNE_NOM ||
-      props.COMMNAME ||
-      null,
-    id:
-      props.OBJECTID ||
-      props.FID ||
-      props.ID ||
-      null
+    lon,
+    lat,
+    x: est,
+    y: nord
   }
 }
 
-function buildSelectedAvalanchePayload(feature) {
-  const data = extractAvalancheData(feature)
-  const geometry = feature.getGeometry()
-  const extent = geometry.getExtent()
-  const center3857 = getCenter(extent)
-  const [lon, lat] = toLonLat(center3857)
+function construireSelectionAvalanche(feature) {
+  const geometrie = feature.getGeometry()
+  const centre3857 = getCenter(geometrie.getExtent())
+  const [lon, lat] = toLonLat(centre3857)
 
   return {
-    ...data,
+    ...extraireInfosAvalanche(feature.getProperties()),
     lon,
     lat
   }
 }
 
-function showFeaturePopup(coordinate, mode, data) {
-  if (!popupOverlay) return
-  popupVisible.value = true
-  popupMode.value = mode
-  popupData.value = data
-  popupOverlay.setPosition(coordinate)
+function afficherPopupPoint(point) {
+  afficherPopup(fromLonLat([point.lon, point.lat]), 'point', point)
 }
 
-function showPointPopup(point) {
-  const coord = fromLonLat([point.lon, point.lat])
-  showFeaturePopup(coord, 'point', point)
+function afficherPopupAvalanche(feature, coordonneeCarte) {
+  const avalanche = construireSelectionAvalanche(feature)
+  afficherPopup(coordonneeCarte, 'avalanche', avalanche)
+  emit('selectionner-avalanche', avalanche)
 }
 
-function centrerValais() {
-  if (!mapInstance) return
+function centrerSurValais() {
+  if (!carte) return
 
-  const center = fromLonLat([7.45, 46.15])
+  const centre = fromLonLat([7.45, 46.15])
 
-  mapInstance.getView().animate({
-    center,
+  carte.getView().animate({
+    center: centre,
     zoom: 10,
     duration: 700
   })
 
-  popupVisible.value = false
-  popupData.value = null
-  popupMode.value = null
-  popupOverlay?.setPosition(undefined)
+  fermerPopup()
 }
 
-function mettreAJourPointClique(point) {
-  if (!clickedPointSource) return
+function mettreAJourPointSelectionne(point) {
+  if (!sourcePointSelectionne) return
 
-  clickedPointSource.clear()
+  sourcePointSelectionne.clear()
 
   if (!point) return
 
-  const feature = new Feature({
+  const pointAffiche = new Feature({
     geometry: new Point(fromLonLat([point.lon, point.lat]))
   })
 
-  clickedPointSource.addFeature(feature)
+  sourcePointSelectionne.addFeature(pointAffiche)
+}
+
+function afficherPointSelectionne(point) {
+  mettreAJourPointSelectionne(point)
+
+  if (!point) {
+    if (modePopup.value === 'point') {
+      fermerPopup()
+    }
+    return
+  }
+
+  afficherPopupPoint(point)
+
+  if (!carte) return
+
+  const vue = carte.getView()
+  const zoomActuel = vue.getZoom() ?? 10
+
+  vue.animate({
+    center: fromLonLat([point.lon, point.lat]),
+    zoom: Math.max(zoomActuel, 13),
+    duration: 700
+  })
+}
+
+function mettreAJourVisibiliteCoucheDanger(coucheId) {
+  if (!coucheAvalanches) return
+
+  const visible = coucheId === 'avalanche' || !coucheId
+  coucheAvalanches.setVisible(visible)
+
+  if (!visible && modePopup.value === 'avalanche') {
+    fermerPopup()
+  }
+}
+
+function gererClicCarte(evenement) {
+  if (!carte) return
+
+  const avalancheCliquee = carte.forEachFeatureAtPixel(
+    evenement.pixel,
+    (feature, couche) => (couche === coucheAvalanches ? feature : null)
+  )
+
+  if (avalancheCliquee) {
+    afficherPopupAvalanche(avalancheCliquee, evenement.coordinate)
+    return
+  }
+
+  emit('carte-cliquee', construireDonneesPoint(evenement.coordinate))
 }
 
 onMounted(async () => {
   await nextTick()
 
-  const built = await buildMap(mapEl.value, popupEl.value)
+  const resultat = await construireCarte(elementCarte.value, elementPopup.value)
 
-  mapInstance = built.map
-  popupOverlay = built.popupOverlay
-  avalancheLayer = built.avalancheLayer
-  mapReady = true
+  carte = resultat.map
+  superpositionPopup = resultat.popupOverlay
+  coucheAvalanches = resultat.avalancheLayer
 
-  updateDangerLayerVisibility(props.selectedDangerLayer)
+  mettreAJourVisibiliteCoucheDanger(props.coucheDangerSelectionnee)
 
-  clickedPointSource = new VectorSource()
-  clickedPointLayer = new VectorLayer({
-    source: clickedPointSource,
+  sourcePointSelectionne = new VectorSource()
+  couchePointSelectionne = new VectorLayer({
+    source: sourcePointSelectionne,
     style: new Style({
-      image: new Circle({
+      image: new CercleStyle({
         radius: 7,
         fill: new Fill({ color: '#dc2626' }),
         stroke: new Stroke({ color: '#ffffff', width: 2 })
       })
     })
   })
-  clickedPointLayer.setZIndex(400)
-  mapInstance.addLayer(clickedPointLayer)
+  couchePointSelectionne.setZIndex(400)
+  carte.addLayer(couchePointSelectionne)
 
-  mapInstance.updateSize()
+  carte.updateSize()
+  ecouteurClicCarte = carte.on('singleclick', gererClicCarte)
 
-  mapInstance.on('singleclick', (event) => {
-    const [lon, lat] = toLonLat(event.coordinate)
-    const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
-
-    const point = { lon, lat, x, y }
-    emit('map-click', point)
-  })
-
-  if (props.clickedPoint) {
-    mettreAJourPointClique(props.clickedPoint)
-    showPointPopup(props.clickedPoint)
+  if (props.pointSelectionne) {
+    afficherPointSelectionne(props.pointSelectionne)
   }
 })
 
-function updateDangerLayerVisibility(layerId) {
-  if (!avalancheLayer) return
-  avalancheLayer.setVisible(
-    layerId === 'avalanche' || !layerId
-  )
-}
-
 watch(
-  () => props.selectedSummit,
-  (summit) => {
-    if (!summit || !mapReady || props.clickedPoint) return
-    showSummitOnMap(summit)
+  () => props.coucheDangerSelectionnee,
+  (coucheId) => {
+    mettreAJourVisibiliteCoucheDanger(coucheId)
   }
 )
 
 watch(
-  () => props.selectedDangerLayer,
-  (layerId) => {
-    updateDangerLayerVisibility(layerId)
-  }
-)
-
-watch(
-  () => props.clickedPoint,
+  () => props.pointSelectionne,
   (point) => {
-    mettreAJourPointClique(point)
-
-    if (point) {
-      showPointPopup(point)
-    }
-  },
-  { deep: true }
+    afficherPointSelectionne(point)
+  }
 )
+
+onBeforeUnmount(() => {
+  if (ecouteurClicCarte) {
+    unByKey(ecouteurClicCarte)
+    ecouteurClicCarte = null
+  }
+
+  if (carte) {
+    carte.setTarget(undefined)
+    carte = null
+  }
+})
 </script>

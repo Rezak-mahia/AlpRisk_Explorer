@@ -1,14 +1,14 @@
 <template>
   <div class="three-d-container">
     <h2 class="panel-title">Visualisation 3D des zones de dangers naturels</h2>
-    <div ref="viewerEl" class="three-d-view"></div>
-    <p v-if="status" class="status">{{ status }}</p>
+    <div ref="elementVue3D" class="three-d-view"></div>
+    <p v-if="messageEtat" class="status">{{ messageEtat }}</p>
 
-    <div v-if="pickedInfo" class="info-box">
+    <div v-if="infosCliquees" class="info-box">
       <strong>Zone d’avalanche</strong>
-      <div v-if="pickedInfo.dangerLabel">Danger : {{ pickedInfo.dangerLabel }}</div>
-      <div v-if="pickedInfo.commune">Commune : {{ pickedInfo.commune }}</div>
-      <div v-if="pickedInfo.id">Identifiant : {{ pickedInfo.id }}</div>
+      <div v-if="infosCliquees.libelleDanger">Danger : {{ infosCliquees.libelleDanger }}</div>
+      <div v-if="infosCliquees.commune">Commune : {{ infosCliquees.commune }}</div>
+      <div v-if="infosCliquees.identifiant">Identifiant : {{ infosCliquees.identifiant }}</div>
     </div>
   </div>
 </template>
@@ -30,83 +30,42 @@ import {
   ClassificationType,
   Cesium3DTileset
 } from 'cesium'
-import { lv95ToLonLat } from '../services/projection.js'
+import { extraireInfosAvalanche } from '../services/avalanche.js'
 import {
   SWISSTOPO_TERRAIN_URL,
   SWISSTOPO_BUILDINGS_URL,
   CESIUM_ION_TOKEN,
-  fetchAllValaisAvalancheGeoJson
+  fetchAllValaisAvalancheGeoJson as recupererToutesLesAvalanchesValaisGeoJson
 } from '../services/geoAdmin.js'
 
 const props = defineProps({
-  selectedSummit: {
+  pointSelectionne: {
     type: Object,
     default: null
   },
-  clickedPoint: {
+  avalancheSelectionnee: {
     type: Object,
     default: null
   },
-  selectedAvalanche: {
-    type: Object,
-    default: null
-  },
-  selectedDangerLayer: {
+  coucheDangerSelectionnee: {
     type: String,
     default: null
   }
 })
 
-const viewerEl = ref(null)
-const status = ref('Initialisation de Cesium...')
-const pickedInfo = ref(null)
+const elementVue3D = ref(null)
+const messageEtat = ref('Initialisation de Cesium...')
+const infosCliquees = ref(null)
 
-let viewer = null
-let buildingsTileset = null
-let activePointEntity = null
-let avalancheDataSource = null
-let clickHandler = null
+let visionneuse = null
+let tuilesBatiments = null
+let entitePointActive = null
+let sourceAvalanches = null
+let gestionnaireClic = null
 
-function dangerLabelFromValue(value) {
-  const n = Number(value)
-  if (n === 4) return 'élevé'
-  if (n === 3) return 'moyen'
-  if (n === 2) return 'faible'
-  if (n === 1) return 'résiduel'
-  if (n === 5) return 'indicatif'
-  if (n === 0) return 'non exposé'
-  return `${value ?? ''}`
-}
-
-function extractAvalancheDataFromEntity(entity) {
-  const props = entity?.properties || {}
-
-  const read = (key) => {
-    const value = props[key]
-    if (value && typeof value.getValue === 'function') {
-      return value.getValue()
-    }
-    return value ?? null
-  }
-
-  const danger = read('DEGRE_DANGER')
-
-  return {
-    dangerValue: danger,
-    dangerLabel: dangerLabelFromValue(danger),
-    commune:
-      read('COMMUNE') ||
-      read('NOM_COMMUNE') ||
-      read('COMMUNE_NOM') ||
-      read('COMMNAME') ||
-      null,
-    id: read('OBJECTID') || read('FID') || read('ID') || null
-  }
-}
-
-function getCesiumAvalancheStyle(entity) {
-  const info = extractAvalancheDataFromEntity(entity)
-  const danger = Number(info.dangerValue)
+function obtenirStyleCesiumAvalanche(entite) {
+  const { niveauDanger } = extraireInfosAvalanche(entite?.properties || {})
+  const danger = Number(niveauDanger)
 
   if (danger === 4) {
     return {
@@ -156,26 +115,31 @@ function getCesiumAvalancheStyle(entity) {
   }
 }
 
-function styliserAvalanches(dataSource) {
-  for (const entity of dataSource.entities.values) {
-    if (!entity.polygon) continue
+function styliserAvalanches(sourceDonnees) {
+  for (const entite of sourceDonnees.entities.values) {
+    if (!entite.polygon) continue
 
-    const style = getCesiumAvalancheStyle(entity)
-    entity.polygon.material = style.material
-    entity.polygon.outline = true
-    entity.polygon.outlineColor = style.outline
-    entity.polygon.classificationType = ClassificationType.TERRAIN
+    const style = obtenirStyleCesiumAvalanche(entite)
+    entite.polygon.material = style.material
+    entite.polygon.outline = true
+    entite.polygon.outlineColor = style.outline
+    entite.polygon.classificationType = ClassificationType.TERRAIN
   }
 }
 
-function seDeplacerVers(lon, lat, label = 'Point') {
-  if (!viewer) return
+function retirerPointActif() {
+  if (!visionneuse || !entitePointActive) return
 
-  if (activePointEntity) {
-    viewer.entities.remove(activePointEntity)
-  }
+  visionneuse.entities.remove(entitePointActive)
+  entitePointActive = null
+}
 
-  activePointEntity = viewer.entities.add({
+function seDeplacerVersPoint(lon, lat, label = 'Point sélectionné') {
+  if (!visionneuse) return
+
+  retirerPointActif()
+
+  entitePointActive = visionneuse.entities.add({
     name: label,
     position: Cartesian3.fromDegrees(lon, lat),
     point: {
@@ -187,7 +151,7 @@ function seDeplacerVers(lon, lat, label = 'Point') {
     }
   })
 
-  viewer.flyTo(activePointEntity, {
+  visionneuse.flyTo(entitePointActive, {
     offset: new HeadingPitchRange(
       CesiumMath.toRadians(20),
       CesiumMath.toRadians(-35),
@@ -198,104 +162,103 @@ function seDeplacerVers(lon, lat, label = 'Point') {
 }
 
 function seDeplacerVersAvalanche(avalanche) {
-  if (!viewer || !avalanche) return
+  if (!visionneuse || !avalanche) return
 
-  viewer.camera.flyTo({
+  retirerPointActif()
+
+  visionneuse.camera.flyTo({
     destination: Cartesian3.fromDegrees(avalanche.lon, avalanche.lat, 9000),
     duration: 2.5
   })
 
-  pickedInfo.value = avalanche
+  infosCliquees.value = avalanche
 }
 
+function mettreAJourSelectionActive() {
+  if (!visionneuse) return
 
-function mettreAJourPointActif() {
-  if (!viewer) return
-
-  if (props.selectedAvalanche) {
-    seDeplacerVersAvalanche(props.selectedAvalanche)
+  if (props.avalancheSelectionnee) {
+    seDeplacerVersAvalanche(props.avalancheSelectionnee)
     return
   }
 
-  if (props.clickedPoint) {
-    seDeplacerVers(
-      props.clickedPoint.lon,
-      props.clickedPoint.lat,
-      'Point sélectionné'
-    )
+  infosCliquees.value = null
+
+  if (props.pointSelectionne) {
+    seDeplacerVersPoint(props.pointSelectionne.lon, props.pointSelectionne.lat)
     return
   }
 
-  if (props.selectedSummit) {
-    seDeplacerVers(
-      props.selectedSummit.lon,
-      props.selectedSummit.lat,
-      props.selectedSummit.label
-    )
-  }
+  retirerPointActif()
 }
 
 async function chargerAvalanches3D() {
-  if (!viewer) return
+  if (!visionneuse) return
 
-  const geojson = await fetchAllValaisAvalancheGeoJson()
+  const geojson = await recupererToutesLesAvalanchesValaisGeoJson()
 
-  avalancheDataSource = await GeoJsonDataSource.load(geojson, {
+  sourceAvalanches = await GeoJsonDataSource.load(geojson, {
     clampToGround: true
   })
 
-  styliserAvalanches(avalancheDataSource)
-  viewer.dataSources.add(avalancheDataSource)
-  mettreAJourDangerLayer3D(props.selectedDangerLayer)
+  styliserAvalanches(sourceAvalanches)
+  visionneuse.dataSources.add(sourceAvalanches)
+  mettreAJourVisibiliteCoucheDanger(props.coucheDangerSelectionnee)
 }
 
-function mettreAJourDangerLayer3D(layerId) {
-  if (!avalancheDataSource) return
-  avalancheDataSource.show = layerId === 'avalanche' || !layerId
+function mettreAJourVisibiliteCoucheDanger(coucheId) {
+  if (!sourceAvalanches) return
+
+  const visible = coucheId === 'avalanche' || !coucheId
+  sourceAvalanches.show = visible
+
+  if (!visible && !props.avalancheSelectionnee) {
+    infosCliquees.value = null
+  }
 }
 
-async function chargeBuildings3D() {
-  if (!viewer) return
+async function chargerBatiments3D() {
+  if (!visionneuse) return
 
-  buildingsTileset = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
-  buildingsTileset.shadows = true
-  viewer.scene.primitives.add(buildingsTileset)
+  tuilesBatiments = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
+  tuilesBatiments.shadows = true
+  visionneuse.scene.primitives.add(tuilesBatiments)
 }
 
-function installerClickInfo3D() {
-  if (!viewer) return
+function installerSelection3D() {
+  if (!visionneuse) return
 
-  clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas)
+  gestionnaireClic = new ScreenSpaceEventHandler(visionneuse.scene.canvas)
 
-  clickHandler.setInputAction((movement) => {
-    pickedInfo.value = null
+  gestionnaireClic.setInputAction((mouvement) => {
+    infosCliquees.value = null
 
-    const picked = viewer.scene.pick(movement.position)
-    if (!picked || !picked.id) return
+    const objetClique = visionneuse.scene.pick(mouvement.position)
+    if (!objetClique || !objetClique.id) return
 
-    const entity = picked.id
-    if (!entity?.properties) return
+    const entite = objetClique.id
+    if (!entite?.properties) return
 
-    const info = extractAvalancheDataFromEntity(entity)
-    if (info.dangerValue == null) return
+    const info = extraireInfosAvalanche(entite.properties)
+    if (info.niveauDanger == null) return
 
-    pickedInfo.value = info
+    infosCliquees.value = info
   }, ScreenSpaceEventType.LEFT_CLICK)
 }
 
 onMounted(async () => {
   try {
-    Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNDU1OWQ2Yy1kNTBlLTQ4MDEtOGJkNS1mMzhiMDQ4ODg4ZjIiLCJpZCI6NDA1Nzk1LCJpYXQiOjE3NzM4NjY0NTJ9.zsVh_6IoIG7NqhDd6hGtgTyDBHN-tazruZXH4Cj3bss'
+    Ion.defaultAccessToken = CESIUM_ION_TOKEN
 
-    const terrainProvider = await CesiumTerrainProvider.fromUrl(
+    const fournisseurTerrain = await CesiumTerrainProvider.fromUrl(
       SWISSTOPO_TERRAIN_URL,
       {
         requestVertexNormals: true
       }
     )
 
-    viewer = new Viewer(viewerEl.value, {
-      terrainProvider,
+    visionneuse = new Viewer(elementVue3D.value, {
+      terrainProvider: fournisseurTerrain,
       timeline: false,
       animation: false,
       baseLayerPicker: false,
@@ -307,50 +270,48 @@ onMounted(async () => {
     })
 
     await chargerAvalanches3D()
-    await chargeBuildings3D()
-    installerClickInfo3D()
-    mettreAJourPointActif()
+    await chargerBatiments3D()
+    installerSelection3D()
+    mettreAJourSelectionActive()
 
-    status.value = ''
+    messageEtat.value = ''
   } catch (error) {
     console.error(error)
-    status.value = error?.message || "Erreur d'initialisation Cesium"
+    messageEtat.value = error?.message || "Erreur d'initialisation Cesium"
   }
 })
 
 watch(
   [
-    () => props.selectedSummit,
-    () => props.clickedPoint,
-    () => props.selectedAvalanche
+    () => props.pointSelectionne,
+    () => props.avalancheSelectionnee
   ],
   () => {
-    mettreAJourPointActif()
-  },
-  { deep: true }
+    mettreAJourSelectionActive()
+  }
 )
 
 watch(
-  () => props.selectedDangerLayer,
-  (layerId) => {
-    mettreAJourDangerLayer3D(layerId)
+  () => props.coucheDangerSelectionnee,
+  (coucheId) => {
+    mettreAJourVisibiliteCoucheDanger(coucheId)
   }
 )
 
 onBeforeUnmount(() => {
-  if (clickHandler) {
-    clickHandler.destroy()
-    clickHandler = null
+  if (gestionnaireClic) {
+    gestionnaireClic.destroy()
+    gestionnaireClic = null
   }
 
-  if (buildingsTileset && viewer?.scene?.primitives) {
-    viewer.scene.primitives.remove(buildingsTileset)
-    buildingsTileset = null
+  if (tuilesBatiments && visionneuse?.scene?.primitives) {
+    visionneuse.scene.primitives.remove(tuilesBatiments)
+    tuilesBatiments = null
   }
 
-  if (viewer) {
-    viewer.destroy()
-    viewer = null
+  if (visionneuse) {
+    visionneuse.destroy()
+    visionneuse = null
   }
 })
 </script>

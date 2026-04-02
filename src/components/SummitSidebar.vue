@@ -1,47 +1,43 @@
 <template>
   <aside class="sidebar">
     <h1 class="title">Analyse des dangers naturels en Valais</h1>
-    
-    <!-- Section 1: Bulle "Choisir un point d'intérêt" -->
+
     <div class="info-box">
-      <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
+      <p><strong>Choisir un point d'intérêt</strong></p>
       <ul>
         <li>Saisissez des coordonnées <strong>MN95</strong></li>
         <li><strong>Cliquez</strong> sur la carte 2D</li>
       </ul>
     </div>
 
-    <!-- Section 2: Recherche MN95 -->
     <div class="mn95-section">
       <h2 class="section-label">Recherche MN95 (LV95)</h2>
       <div class="input-grid">
         <div class="field">
           <label>Est (E)</label>
-          <input v-model.number="mn95E" type="number" placeholder="ex: 2600000" class="no-spinner" />
+          <input v-model.number="coordonneeEst" type="number" placeholder="ex: 2600000" class="no-spinner" />
         </div>
         <div class="field">
           <label>Nord (N)</label>
-          <input v-model.number="mn95N" type="number" placeholder="ex: 1200000" class="no-spinner" />
+          <input v-model.number="coordonneeNord" type="number" placeholder="ex: 1200000" class="no-spinner" />
         </div>
       </div>
-      <button class="btn-primary" @click="goToMN95">Localiser la saisie</button>
+      <button class="btn-primary" @click="localiserCoordonnees">Localiser la saisie</button>
     </div>
 
-    <!-- Section 3: Bulle "Choisir une couche" -->
     <div class="info-box">
-      <p>📍 <strong>Choisir une couche :</strong></p>
+      <p><strong>Choisir une couche</strong></p>
       <ul>
         <li>Choisissez un danger naturel dans le menu déroulant</li>
         <li>Les zones d'avalanche, de glissement ou d'hydrologie s'afficheront sur la carte</li>
       </ul>
     </div>
 
-    <!-- Section 4: Sélection de la couche de danger -->
     <div class="layer-select-section">
       <h2 class="section-label">Couche de danger naturel</h2>
-      <select v-model="selectedLayerId" @change="selectDangerLayer">
-        <option v-for="layer in dangerLayers" :key="layer.id" :value="layer.id">
-          {{ layer.label }}
+      <select v-model="idCoucheChoisie" @change="selectionnerCoucheDanger">
+        <option v-for="couche in couchesDanger" :key="couche.id" :value="couche.id">
+          {{ couche.label }}
         </option>
       </select>
     </div>
@@ -51,56 +47,55 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import proj4 from 'proj4'
+import { onMounted, ref, watch } from 'vue'
+import { lv95ToLonLat as lv95VersLonLat } from '../services/projection.js'
 
 const props = defineProps({
-  selectedSummit: { type: Object, default: null },
-  selectedDangerLayer: { type: String, default: null }
+  coucheDangerSelectionnee: { type: String, default: null }
 })
 
-const emit = defineEmits(['select-summit', 'select-danger-layer'])
+const emit = defineEmits(['selectionner-point', 'selectionner-couche-danger'])
 
-const dangerLayers = [
+const couchesDanger = [
   { id: 'avalanche', label: 'Avalanche' },
   { id: 'glissement', label: 'Glissement' },
   { id: 'hydrologie', label: 'Hydrologie' }
 ]
 
-const selectedLayerId = ref(props.selectedDangerLayer || dangerLayers[0].id)
+const idCoucheChoisie = ref(props.coucheDangerSelectionnee || couchesDanger[0].id)
+const coordonneeEst = ref(null)
+const coordonneeNord = ref(null)
 
 watch(
-  () => props.selectedDangerLayer,
-  (next) => {
-    if (next) {
-      selectedLayerId.value = next
+  () => props.coucheDangerSelectionnee,
+  (prochaineCouche) => {
+    if (prochaineCouche) {
+      idCoucheChoisie.value = prochaineCouche
     }
   }
 )
 
 onMounted(() => {
-  if (!props.selectedDangerLayer) {
-    selectDangerLayer()
+  if (!props.coucheDangerSelectionnee) {
+    selectionnerCoucheDanger()
   }
 })
 
-const mn95E = ref(null)
-const mn95N = ref(null)
-
-function selectDangerLayer() {
-  emit('select-danger-layer', selectedLayerId.value)
+function selectionnerCoucheDanger() {
+  emit('selectionner-couche-danger', idCoucheChoisie.value)
 }
 
-function goToMN95() {
-  if (!mn95E.value || !mn95N.value) return
-  const [lon, lat] = proj4('EPSG:2056', 'EPSG:4326', [mn95E.value, mn95N.value])
-  emit('select-summit', {
-    id: 'mn95-' + Date.now(),
-    label: `Saisie MN95: ${mn95E.value} / ${mn95N.value}`,
+function localiserCoordonnees() {
+  if (coordonneeEst.value == null || coordonneeNord.value == null) return
+
+  const { lon, lat } = lv95VersLonLat(coordonneeEst.value, coordonneeNord.value)
+
+  emit('selectionner-point', {
+    label: `Coordonnées LV95 : ${coordonneeEst.value} / ${coordonneeNord.value}`,
     lon,
     lat,
-    x: mn95E.value,
-    y: mn95N.value
+    x: coordonneeEst.value,
+    y: coordonneeNord.value
   })
 }
 </script>
