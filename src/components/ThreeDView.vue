@@ -63,56 +63,44 @@ let entitePointActive = null
 let sourceAvalanches = null
 let gestionnaireClic = null
 
+const COULEUR_CONTOUR_DANGER = Color.fromBytes(104, 104, 104, 255)
+const STYLES_AVALANCHES = {
+  0: {
+    material: Color.fromBytes(255, 255, 255, 70),
+    outline: Color.fromBytes(104, 104, 104, 150)
+  },
+  1: {
+    material: Color.fromBytes(255, 248, 103, 100),
+    outline: Color.fromBytes(255, 248, 103, 255)
+  },
+  2: {
+    material: Color.fromBytes(255, 248, 103, 178),
+    outline: COULEUR_CONTOUR_DANGER
+  },
+  3: {
+    material: Color.fromBytes(85, 142, 213, 178),
+    outline: COULEUR_CONTOUR_DANGER
+  },
+  4: {
+    material: Color.fromBytes(255, 93, 81, 178),
+    outline: COULEUR_CONTOUR_DANGER
+  },
+  5: {
+    material: Color.fromBytes(255, 170, 0, 178),
+    outline: COULEUR_CONTOUR_DANGER
+  }
+}
+
+const STYLE_AVALANCHE_PAR_DEFAUT = {
+  material: Color.GRAY.withAlpha(0.35),
+  outline: Color.DARKGRAY
+}
+
 function obtenirStyleCesiumAvalanche(entite) {
   const { niveauDanger } = extraireInfosAvalanche(entite?.properties || {})
   const danger = Number(niveauDanger)
 
-  if (danger === 4) {
-    return {
-      material: Color.fromBytes(255, 93, 81, 178),
-      outline: Color.fromBytes(104, 104, 104, 255)
-    }
-  }
-
-  if (danger === 3) {
-    return {
-      material: Color.fromBytes(85, 142, 213, 178),
-      outline: Color.fromBytes(104, 104, 104, 255)
-    }
-  }
-
-  if (danger === 2) {
-    return {
-      material: Color.fromBytes(255, 248, 103, 178),
-      outline: Color.fromBytes(104, 104, 104, 255)
-    }
-  }
-
-  if (danger === 1) {
-    return {
-      material: Color.fromBytes(255, 248, 103, 100),
-      outline: Color.fromBytes(255, 248, 103, 255)
-    }
-  }
-
-  if (danger === 5) {
-    return {
-      material: Color.fromBytes(255, 170, 0, 178),
-      outline: Color.fromBytes(104, 104, 104, 255)
-    }
-  }
-
-  if (danger === 0) {
-    return {
-      material: Color.fromBytes(255, 255, 255, 70),
-      outline: Color.fromBytes(104, 104, 104, 150)
-    }
-  }
-
-  return {
-    material: Color.GRAY.withAlpha(0.35),
-    outline: Color.DARKGRAY
-  }
+  return STYLES_AVALANCHES[danger] || STYLE_AVALANCHE_PAR_DEFAUT
 }
 
 function styliserAvalanches(sourceDonnees) {

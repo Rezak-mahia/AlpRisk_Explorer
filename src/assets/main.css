@@ -50,21 +50,12 @@ input {
 
 .left-panel,
 .right-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-}
-
-.left-panel {
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem;
-}
-
-.right-panel {
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem;
 }
 
 .map-container,

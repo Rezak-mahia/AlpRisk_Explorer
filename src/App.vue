@@ -40,14 +40,17 @@ const pointSelectionne = ref(null)
 const avalancheSelectionnee = ref(null)
 const coucheDangerSelectionnee = ref('avalanche')
 
-function selectionnerPoint(point) {
+function definirSelection({ point = null, avalanche = null }) {
   pointSelectionne.value = point
-  avalancheSelectionnee.value = null
+  avalancheSelectionnee.value = avalanche
+}
+
+function selectionnerPoint(point) {
+  definirSelection({ point })
 }
 
 function selectionnerAvalanche(avalanche) {
-  avalancheSelectionnee.value = avalanche
-  pointSelectionne.value = null
+  definirSelection({ avalanche })
 }
 
 function selectionnerCoucheDanger(coucheId) {

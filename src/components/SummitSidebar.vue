@@ -62,7 +62,9 @@ const couchesDanger = [
   { id: 'hydrologie', label: 'Hydrologie' }
 ]
 
-const idCoucheChoisie = ref(props.coucheDangerSelectionnee || couchesDanger[0].id)
+const COUCHE_PAR_DEFAUT = couchesDanger[0].id
+
+const idCoucheChoisie = ref(props.coucheDangerSelectionnee || COUCHE_PAR_DEFAUT)
 const coordonneeEst = ref(null)
 const coordonneeNord = ref(null)
 
@@ -76,9 +78,7 @@ watch(
 )
 
 onMounted(() => {
-  if (!props.coucheDangerSelectionnee) {
-    selectionnerCoucheDanger()
-  }
+  if (!props.coucheDangerSelectionnee) selectionnerCoucheDanger()
 })
 
 function selectionnerCoucheDanger() {
@@ -86,16 +86,18 @@ function selectionnerCoucheDanger() {
 }
 
 function localiserCoordonnees() {
-  if (coordonneeEst.value == null || coordonneeNord.value == null) return
+  const est = coordonneeEst.value
+  const nord = coordonneeNord.value
+  if (est == null || nord == null) return
 
-  const { lon, lat } = lv95VersLonLat(coordonneeEst.value, coordonneeNord.value)
+  const { lon, lat } = lv95VersLonLat(est, nord)
 
   emit('selectionner-point', {
-    label: `Coordonnées LV95 : ${coordonneeEst.value} / ${coordonneeNord.value}`,
+    label: `Coordonnées LV95 : ${est} / ${nord}`,
     lon,
     lat,
-    x: coordonneeEst.value,
-    y: coordonneeNord.value
+    x: est,
+    y: nord
   })
 }
 </script>

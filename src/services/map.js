@@ -14,63 +14,51 @@ import {
   fetchAllValaisAvalancheGeoJson
 } from '../services/geoAdmin.js'
 
+const COULEUR_CONTOUR = 'rgba(104, 104, 104, 1)'
+const STYLE_AVALANCHE_PAR_DEFAUT = {
+  fill: 'rgba(160, 160, 160, 0.35)',
+  stroke: COULEUR_CONTOUR,
+  lineDash: undefined
+}
+
+const STYLES_AVALANCHE = {
+  0: {
+    fill: 'rgba(255, 255, 255, 0.20)',
+    stroke: 'rgba(104, 104, 104, 0.6)',
+    lineDash: undefined
+  },
+  1: {
+    fill: 'rgba(255, 248, 103, 0.35)',
+    stroke: 'rgba(255, 248, 103, 1)',
+    lineDash: [6, 6]
+  },
+  2: {
+    fill: 'rgba(255, 248, 103, 0.70)',
+    stroke: COULEUR_CONTOUR,
+    lineDash: undefined
+  },
+  3: {
+    fill: 'rgba(85, 142, 213, 0.70)',
+    stroke: COULEUR_CONTOUR,
+    lineDash: undefined
+  },
+  4: {
+    fill: 'rgba(255, 93, 81, 0.70)',
+    stroke: COULEUR_CONTOUR,
+    lineDash: undefined
+  },
+  5: {
+    fill: 'rgba(255, 170, 0, 0.70)',
+    stroke: COULEUR_CONTOUR,
+    lineDash: undefined
+  }
+}
+
 function getAvalancheStyleInfo(feature) {
   const props = feature.getProperties()
   const danger = Number(props.DEGRE_DANGER ?? 0)
 
-  if (danger === 4) {
-    return {
-      fill: 'rgba(255, 93, 81, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)',
-      lineDash: undefined
-    }
-  }
-
-  if (danger === 3) {
-    return {
-      fill: 'rgba(85, 142, 213, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)',
-      lineDash: undefined
-    }
-  }
-
-  if (danger === 2) {
-    return {
-      fill: 'rgba(255, 248, 103, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)',
-      lineDash: undefined
-    }
-  }
-
-  if (danger === 1) {
-    return {
-      fill: 'rgba(255, 248, 103, 0.35)',
-      stroke: 'rgba(255, 248, 103, 1)',
-      lineDash: [6, 6]
-    }
-  }
-
-  if (danger === 5) {
-    return {
-      fill: 'rgba(255, 170, 0, 0.70)',
-      stroke: 'rgba(104, 104, 104, 1)',
-      lineDash: undefined
-    }
-  }
-
-  if (danger === 0) {
-    return {
-      fill: 'rgba(255, 255, 255, 0.20)',
-      stroke: 'rgba(104, 104, 104, 0.6)',
-      lineDash: undefined
-    }
-  }
-
-  return {
-    fill: 'rgba(160, 160, 160, 0.35)',
-    stroke: 'rgba(104, 104, 104, 1)',
-    lineDash: undefined
-  }
+  return STYLES_AVALANCHE[danger] || STYLE_AVALANCHE_PAR_DEFAUT
 }
 
 function createAvalancheStyle(feature) {

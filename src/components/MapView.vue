@@ -64,6 +64,8 @@ let sourcePointSelectionne = null
 let couchePointSelectionne = null
 let ecouteurClicCarte = null
 
+const CENTRE_VALAIS = fromLonLat([7.45, 46.15])
+
 function fermerPopup() {
   popupVisible.value = false
   donneesPopup.value = null
@@ -104,10 +106,6 @@ function construireSelectionAvalanche(feature) {
   }
 }
 
-function afficherPopupPoint(point) {
-  afficherPopup(fromLonLat([point.lon, point.lat]), 'point', point)
-}
-
 function afficherPopupAvalanche(feature, coordonneeCarte) {
   const avalanche = construireSelectionAvalanche(feature)
   afficherPopup(coordonneeCarte, 'avalanche', avalanche)
@@ -117,10 +115,8 @@ function afficherPopupAvalanche(feature, coordonneeCarte) {
 function centrerSurValais() {
   if (!carte) return
 
-  const centre = fromLonLat([7.45, 46.15])
-
   carte.getView().animate({
-    center: centre,
+    center: CENTRE_VALAIS,
     zoom: 10,
     duration: 700
   })
@@ -152,7 +148,7 @@ function afficherPointSelectionne(point) {
     return
   }
 
-  afficherPopupPoint(point)
+  afficherPopup(fromLonLat([point.lon, point.lat]), 'point', point)
 
   if (!carte) return
 
