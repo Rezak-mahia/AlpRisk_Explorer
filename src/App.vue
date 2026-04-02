@@ -4,7 +4,9 @@
       <SummitSidebar
         :summits="summits"
         :selected-summit="selectedSummit"
+        :selected-danger-layer="selectedDangerLayer"
         @select-summit="handleSelectSummit"
+        @select-danger-layer="handleSelectDangerLayer"
       />
     </aside>
 
@@ -13,6 +15,7 @@
         <MapView
           :summits="summits"
           :selected-summit="selectedSummit"
+          :selected-danger-layer="selectedDangerLayer"
           :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
           @select-summit="handleSelectSummit"
@@ -48,6 +51,7 @@ const selectedSummit = ref(null)
 const clickedPoint = ref(null)
 const drawnLine = ref(null)
 const selectedAvalanche = ref(null)
+const selectedDangerLayer = ref(null)
 
 async function loadSummits() {
   try {
@@ -82,6 +86,10 @@ function handleSelectAvalanche(avalanche) {
   selectedAvalanche.value = avalanche
   selectedSummit.value = null
   clickedPoint.value = null
+}
+
+function handleSelectDangerLayer(layerId) {
+  selectedDangerLayer.value = layerId
 }
 
 onMounted(() => {

@@ -274,7 +274,7 @@ async function chargerAvalanches3D() {
   viewer.dataSources.add(avalancheDataSource)
 }
 
-async function chargerBatiments3D() {
+async function chargeBuildings3D() {
   if (!viewer) return
 
   buildingsTileset = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
@@ -327,7 +327,7 @@ onMounted(async () => {
     })
 
     await chargerAvalanches3D()
-    await chargerBatiments3D()
+    await chargeBuildings3D()
     installerClickInfo3D()
     mettreAJourPointActif()
     mettreAJourLigneProfil3D(props.drawnLine)

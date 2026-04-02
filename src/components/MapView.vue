@@ -56,6 +56,10 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  selectedDangerLayer: {
+    type: String,
+    default: null
+  },
   clickedPoint: {
     type: Object,
     default: null
@@ -83,6 +87,7 @@ const popupMode = ref(null)
 let mapInstance = null
 let popupOverlay = null
 let mapReady = false
+let avalancheLayer = null
 
 let profileSource = null
 let profileLayer = null
@@ -258,7 +263,10 @@ onMounted(async () => {
 
   mapInstance = built.map
   popupOverlay = built.popupOverlay
+  avalancheLayer = built.avalancheLayer
   mapReady = true
+
+  updateDangerLayerVisibility(props.selectedDangerLayer)
 
   profileSource = new VectorSource()
   profileLayer = new VectorLayer({
@@ -326,11 +334,23 @@ onMounted(async () => {
   }
 })
 
+function updateDangerLayerVisibility(layerId) {
+  if (!avalancheLayer) return
+  avalancheLayer.setVisible(layerId === 'avalanche')
+}
+
 watch(
   () => props.selectedSummit,
   (summit) => {
     if (!summit || !mapReady || props.clickedPoint) return
     showSummitOnMap(summit)
+  }
+)
+
+watch(
+  () => props.selectedDangerLayer,
+  (layerId) => {
+    updateDangerLayerVisibility(layerId)
   }
 )
 

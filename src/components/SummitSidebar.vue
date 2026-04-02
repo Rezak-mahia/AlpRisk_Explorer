@@ -1,14 +1,30 @@
 <template>
   <aside class="sidebar">
-    <h1 class="title">Analyse des dangers d'avalanche en Valais</h1>
+    <h1 class="title">Analyse des dangers naturels en Valais</h1>
     
     <div class="info-box">
-      <p>📍 <strong>Choisir un point :</strong></p>
+      <p>📍 <strong>Choisir une couche :</strong></p>
       <ul>
-        <li>Sélectionnez un sommet dans la liste</li>
+        <li>Choisissez un danger naturel dans le menu déroulant</li>
+        <li>Les zones d’avalanche,  de glissement ou d'hydrologie s’afficheront sur la carte</li>
+      </ul>
+      <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
+      <ul>
         <li>Saisissez des coordonnées <strong>MN95</strong></li>
         <li><strong>Cliquez</strong> sur la carte 2D</li>
       </ul>
+    </div>
+
+    <div class="layer-select-section">
+      <h2 class="section-label">Couche de danger naturel</h2>
+      <select v-model="selectedLayerId" @change="selectDangerLayer">
+        <option v-for="layer in dangerLayers" :key="layer.id" :value="layer.id">
+          {{ layer.label }}
+        </option>
+      </select>
+      <div class="current-layer-box">
+        Couche sélectionnée : <strong>{{ selectedLayerLabel }}</strong>
+      </div>
     </div>
 
     <div class="mn95-section">
@@ -25,37 +41,51 @@
       </div>
       <button class="btn-primary" @click="goToMN95">Localiser la saisie</button>
     </div>
-
-    <hr class="divider" />
-
-    <input v-model="search" class="search-input" type="text" placeholder="Filtrer les sommets..." />
-
-    <div v-for="s in filtered" :key="s.id" :class="['card', { active: selectedSummit?.id === s.id }]">
-      <button class="card-btn" @click="$emit('select-summit', s)">
-        <strong>{{ s.label }}</strong>
-        <div class="details">{{ s.altitude }} m - {{ s.canton }}</div>
-      </button>
-    </div>
   </aside>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import proj4 from 'proj4'
 
 const props = defineProps({
-  summits: { type: Array, required: true },
-  selectedSummit: { type: Object, default: null }
+  selectedSummit: { type: Object, default: null },
+  selectedDangerLayer: { type: String, default: null }
 })
 
-const emit = defineEmits(['select-summit'])
-const search = ref('')
+const emit = defineEmits(['select-summit', 'select-danger-layer'])
+const dangerLayers = [
+  { id: 'avalanche', label: 'Avalanche' },
+  { id: 'glissement', label: 'Glissement' },
+  { id: 'hydrologie', label: 'Hydrologie' }
+]
+
+const selectedLayerId = ref(props.selectedDangerLayer || dangerLayers[0].id)
+const selectedLayerLabel = computed(() => {
+  return dangerLayers.find(layer => layer.id === selectedLayerId.value)?.label || ''
+})
+
+watch(
+  () => props.selectedDangerLayer,
+  (next) => {
+    if (next) {
+      selectedLayerId.value = next
+    }
+  }
+)
+
+onMounted(() => {
+  if (!props.selectedDangerLayer) {
+    selectDangerLayer()
+  }
+})
+
 const mn95E = ref(null)
 const mn95N = ref(null)
 
-const filtered = computed(() => {
-  return props.summits.filter(s => s.label.toLowerCase().includes(search.value.toLowerCase()))
-})
+function selectDangerLayer() {
+  emit('select-danger-layer', selectedLayerId.value)
+}
 
 function goToMN95() {
   if (!mn95E.value || !mn95N.value) return
@@ -79,22 +109,22 @@ function goToMN95() {
 .field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .field label { font-size: 0.65rem; color: #94a3b8; font-weight: bold; }
 .field input { width: 100%; padding: 8px; font-size: 0.85rem; border: 1px solid #cbd5e1; border-radius: 4px; }
+.layer-select-section { background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+.layer-select-section .section-label { display: block; margin-bottom: 8px; font-size: 0.75rem; color: #64748b; font-weight: 600; }
+.layer-select-section select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.95rem; }
+.current-layer-box { margin-top: 12px; background: #eff6ff; color: #0f172a; padding: 12px; border-radius: 8px; border: 1px solid #dbeafe; }
 
 /* --- SUPPRESSION DES FLÈCHES (SPINNERS) --- */
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 .no-spinner {
+  appearance: textfield;
   -moz-appearance: textfield; /* Pour Firefox */
 }
 
 .btn-primary { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-.search-input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 4px; }
-.divider { margin: 20px 0; border: 0; border-top: 1px solid #e2e8f0; }
-.card { background: white; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
-.card.active { border-color: #2563eb; background: #eff6ff; }
-.card-btn { width: 100%; text-align: left; background: none; border: none; padding: 12px; cursor: pointer; }
-.details { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
 </style>
