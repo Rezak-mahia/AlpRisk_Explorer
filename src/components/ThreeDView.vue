@@ -27,11 +27,13 @@ import {
   GeoJsonDataSource,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
-  ClassificationType
+  ClassificationType,
+  Cesium3DTileset
 } from 'cesium'
 import { lv95ToLonLat } from '../services/projection.js'
 import {
   SWISSTOPO_TERRAIN_URL,
+  SWISSTOPO_BUILDINGS_URL,
   CESIUM_ION_TOKEN,
   fetchAllValaisAvalancheGeoJson
 } from '../services/geoAdmin.js'
@@ -64,6 +66,7 @@ const status = ref('Initialisation de Cesium...')
 const pickedInfo = ref(null)
 
 let viewer = null
+let buildingsTileset = null
 let activePointEntity = null
 let profileLineEntity = null
 let avalancheDataSource = null
@@ -166,7 +169,7 @@ function styliserAvalanches(dataSource) {
     entity.polygon.material = style.material
     entity.polygon.outline = true
     entity.polygon.outlineColor = style.outline
-    entity.polygon.classificationType = ClassificationType.BOTH
+    entity.polygon.classificationType = ClassificationType.TERRAIN
   }
 }
 
@@ -294,6 +297,14 @@ async function chargerAvalanches3D() {
   viewer.dataSources.add(avalancheDataSource)
 }
 
+async function chargerBatiments3D() {
+  if (!viewer) return
+
+  buildingsTileset = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
+  buildingsTileset.shadows = true
+  viewer.scene.primitives.add(buildingsTileset)
+}
+
 function installerClickInfo3D() {
   if (!viewer) return
 
@@ -339,6 +350,7 @@ onMounted(async () => {
     })
 
     await chargerAvalanches3D()
+    await chargerBatiments3D()
     installerClickInfo3D()
     mettreAJourPointActif()
     mettreAJourLigneProfil3D(props.drawnLine)
@@ -375,6 +387,11 @@ onBeforeUnmount(() => {
   if (clickHandler) {
     clickHandler.destroy()
     clickHandler = null
+  }
+
+  if (buildingsTileset && viewer?.scene?.primitives) {
+    viewer.scene.primitives.remove(buildingsTileset)
+    buildingsTileset = null
   }
 
   if (viewer) {

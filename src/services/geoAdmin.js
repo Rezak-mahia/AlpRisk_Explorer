@@ -18,6 +18,10 @@ export const SWISSTOPO_WMTS_CAPABILITIES_URL =
 export const SWISSTOPO_TERRAIN_URL =
   'https://3d.geo.admin.ch/ch.swisstopo.terrain.3d/v1/'
 
+// swisstopo batiments
+export const SWISSTOPO_BUILDINGS_URL =
+  'https://3d.geo.admin.ch/ch.swisstopo.swissbuildings3d.3d/v1/tileset.json'
+
 // Mets ici ton vrai token Cesium Ion
 export const CESIUM_ION_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhNDU1OWQ2Yy1kNTBlLTQ4MDEtOGJkNS1mMzhiMDQ4ODg4ZjIiLCJpZCI6NDA1Nzk1LCJpYXQiOjE3NzM4NjY0NTJ9.zsVh_6IoIG7NqhDd6hGtgTyDBHN-tazruZXH4Cj3bss'
 
