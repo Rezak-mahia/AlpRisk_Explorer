@@ -19,7 +19,6 @@
           @map-click="handleMapClick"
           @draw-line="handleDrawLine"
           @select-avalanche="handleSelectAvalanche"
-          @center-valais="handleCenterValais"
         />
 
         <ElevationProfile :line-coordinates="drawnLine" />
@@ -31,7 +30,6 @@
           :clicked-point="clickedPoint"
           :drawn-line="drawnLine"
           :selected-avalanche="selectedAvalanche"
-          :centered-region="centeredRegion"
         />
       </section>
     </main>
@@ -50,7 +48,6 @@ const selectedSummit = ref(null)
 const clickedPoint = ref(null)
 const drawnLine = ref(null)
 const selectedAvalanche = ref(null)
-const centeredRegion = ref(null)
 
 async function loadSummits() {
   try {
@@ -69,14 +66,12 @@ function handleSelectSummit(summit) {
   selectedSummit.value = summit
   clickedPoint.value = null
   selectedAvalanche.value = null
-  centeredRegion.value = null
 }
 
 function handleMapClick(point) {
   clickedPoint.value = point
   selectedSummit.value = null
   selectedAvalanche.value = null
-  centeredRegion.value = null
 }
 
 function handleDrawLine(line) {
@@ -87,14 +82,6 @@ function handleSelectAvalanche(avalanche) {
   selectedAvalanche.value = avalanche
   selectedSummit.value = null
   clickedPoint.value = null
-  centeredRegion.value = null
-}
-
-function handleCenterValais(region) {
-  centeredRegion.value = region
-  selectedSummit.value = null
-  clickedPoint.value = null
-  selectedAvalanche.value = null
 }
 
 onMounted(() => {

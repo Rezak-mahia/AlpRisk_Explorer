@@ -191,12 +191,6 @@ function centrerValais() {
   popupData.value = null
   popupMode.value = null
   popupOverlay?.setPosition(undefined)
-
-  emit('center-valais', {
-    lon: 7.45,
-    lat: 46.15,
-    height: 180000
-  })
 }
 
 function mettreAJourProfilLigne(line) {
