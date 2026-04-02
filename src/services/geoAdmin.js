@@ -8,9 +8,6 @@ import WMTSCapabilities from 'ol/format/WMTSCapabilities.js'
 export const SEARCH_BASE_URL =
   'https://api3.geo.admin.ch/rest/services/ech/SearchServer'
 
-export const PROFILE_URL =
-  'https://api3.geo.admin.ch/rest/services/profile.json'
-
 export const SWISSTOPO_WMTS_CAPABILITIES_URL =
   'https://wmts.geo.admin.ch/EPSG/3857/1.0.0/WMTSCapabilities.xml'
 
@@ -117,25 +114,7 @@ export async function searchLocations(searchText) {
     throw new Error('Erreur lors de la recherche geo.admin')
   }
 
-  return response.json()
-}
 
-export async function getElevationProfile(lineCoordinates, nbPoints = 400) {
-  const geom = {
-    type: 'LineString',
-    coordinates: lineCoordinates
-  }
-
-  const url = new URL(PROFILE_URL)
-  url.searchParams.set('geom', JSON.stringify(geom))
-  url.searchParams.set('sr', '2056')
-  url.searchParams.set('nb_points', String(nbPoints))
-  url.searchParams.set('distinct_points', 'true')
-
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error('Erreur lors du chargement du profil d’altitude')
-  }
 
   return response.json()
 }

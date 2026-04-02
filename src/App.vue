@@ -17,19 +17,14 @@
           :selected-summit="selectedSummit"
           :selected-danger-layer="selectedDangerLayer"
           :clicked-point="clickedPoint"
-          :drawn-line="drawnLine"
           @map-click="handleMapClick"
-          @draw-line="handleDrawLine"
           @select-avalanche="handleSelectAvalanche"
         />
-
-        <ElevationProfile :line-coordinates="drawnLine" />
       </section>
 
       <section class="right-panel">
         <ThreeDView
           :clicked-point="clickedPoint"
-          :drawn-line="drawnLine"
           :selected-avalanche="selectedAvalanche"
           :selected-danger-layer="selectedDangerLayer"
         />
@@ -43,11 +38,9 @@ import { ref, onMounted } from 'vue'
 import MapView from './components/MapView.vue'
 import ThreeDView from './components/ThreeDView.vue'
 import SummitSidebar from './components/SummitSidebar.vue'
-import ElevationProfile from './components/ElevationProfile.vue'
 
 const summits = ref([])
 const clickedPoint = ref(null)
-const drawnLine = ref(null)
 const selectedAvalanche = ref(null)
 const selectedDangerLayer = ref('avalanche')
 
@@ -72,10 +65,6 @@ function handleSelectPoint(point) {
 function handleMapClick(point) {
   clickedPoint.value = point
   selectedAvalanche.value = null
-}
-
-function handleDrawLine(line) {
-  drawnLine.value = line
 }
 
 function handleSelectAvalanche(avalanche) {

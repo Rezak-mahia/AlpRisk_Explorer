@@ -1,6 +1,6 @@
 <template>
   <div class="three-d-container">
-    <h2 class="panel-title">Vue 3D (Cesium + swisstopo)</h2>
+    <h2 class="panel-title">Visualisation 3D des zones de dangers naturels</h2>
     <div ref="viewerEl" class="three-d-view"></div>
     <p v-if="status" class="status">{{ status }}</p>
 
@@ -47,10 +47,6 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  drawnLine: {
-    type: Array,
-    default: null
-  },
   selectedAvalanche: {
     type: Object,
     default: null
@@ -68,7 +64,6 @@ const pickedInfo = ref(null)
 let viewer = null
 let buildingsTileset = null
 let activePointEntity = null
-let profileLineEntity = null
 let avalancheDataSource = null
 let clickHandler = null
 
@@ -240,31 +235,6 @@ function mettreAJourPointActif() {
   }
 }
 
-function mettreAJourLigneProfil3D(line) {
-  if (!viewer) return
-
-  if (profileLineEntity) {
-    viewer.entities.remove(profileLineEntity)
-    profileLineEntity = null
-  }
-
-  if (!line || line.length < 2) return
-
-  const positions = line.map(([x, y]) => {
-    const { lon, lat } = lv95ToLonLat(x, y)
-    return Cartesian3.fromDegrees(lon, lat)
-  })
-
-  profileLineEntity = viewer.entities.add({
-    polyline: {
-      positions,
-      width: 4,
-      material: Color.BLUE,
-      clampToGround: true
-    }
-  })
-}
-
 async function chargerAvalanches3D() {
   if (!viewer) return
 
@@ -340,7 +310,6 @@ onMounted(async () => {
     await chargeBuildings3D()
     installerClickInfo3D()
     mettreAJourPointActif()
-    mettreAJourLigneProfil3D(props.drawnLine)
 
     status.value = ''
   } catch (error) {
@@ -366,14 +335,6 @@ watch(
   (layerId) => {
     mettreAJourDangerLayer3D(layerId)
   }
-)
-
-watch(
-  () => props.drawnLine,
-  (line) => {
-    mettreAJourLigneProfil3D(line)
-  },
-  { deep: true }
 )
 
 onBeforeUnmount(() => {

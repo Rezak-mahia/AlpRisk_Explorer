@@ -41,7 +41,7 @@ input {
 
 .main-panel {
   display: grid;
-  grid-template-columns: 1fr 0.9fr;
+  grid-template-columns: 1fr 1fr;
   min-width: 0;
   min-height: 0;
   height: 100vh;
@@ -56,9 +56,9 @@ input {
 }
 
 .left-panel {
-  display: grid;
-  grid-template-rows: 1fr 260px;
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
 }
 
 .right-panel {
@@ -72,12 +72,16 @@ input {
 .three-d-container {
   background: white;
   border: 1px solid #d1d5db;
+  border-radius: 10px;
   min-width: 0;
   min-height: 0;
 }
 
 .left-panel .map-container {
-  height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem;
 }
 
 .left-panel .profile-container {
@@ -92,6 +96,8 @@ input {
 .map {
   width: 100%;
   height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 .profile-container {
@@ -191,8 +197,9 @@ input {
 
 .map-toolbar {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: 42px;
+  right: 12px;
+  left: auto;
   z-index: 10;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #d1d5db;

@@ -1,8 +1,8 @@
 <template>
   <div class="map-container">
+    <h2 class="panel-title">Carte des dangers naturels en Valais</h2>
     <div class="map-toolbar">
       <button @click="centrerValais">Centrer sur le Valais</button>
-      <button @click="activerDessin">Dessiner un profil</button>
     </div>
 
     <div ref="mapEl" class="map"></div>
@@ -36,10 +36,8 @@ import { fromLonLat, toLonLat } from 'ol/proj.js'
 import { getCenter } from 'ol/extent'
 import Feature from 'ol/Feature.js'
 import Point from 'ol/geom/Point.js'
-import LineString from 'ol/geom/LineString.js'
 import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
-import Draw from 'ol/interaction/Draw.js'
 import { Style, Stroke, Circle, Fill } from 'ol/style.js'
 import { buildMap } from '../services/map.js'
 import {
@@ -63,16 +61,11 @@ const props = defineProps({
   clickedPoint: {
     type: Object,
     default: null
-  },
-  drawnLine: {
-    type: Array,
-    default: null
   }
 })
 
 const emit = defineEmits([
   'map-click',
-  'draw-line',
   'select-avalanche'
 ])
 
@@ -86,13 +79,6 @@ let mapInstance = null
 let popupOverlay = null
 let mapReady = false
 let avalancheLayer = null
-
-let profileSource = null
-let profileLayer = null
-
-let drawSource = null
-let drawLayer = null
-let drawInteraction = null
 
 let clickedPointSource = null
 let clickedPointLayer = null
@@ -173,22 +159,6 @@ function centrerValais() {
   popupOverlay?.setPosition(undefined)
 }
 
-function mettreAJourProfilLigne(line) {
-  if (!profileSource) return
-
-  profileSource.clear()
-
-  if (!line || line.length < 2) return
-
-  const coords3857 = line.map(([x, y]) => lv95ToWebMercator(x, y))
-
-  const feature = new Feature({
-    geometry: new LineString(coords3857)
-  })
-
-  profileSource.addFeature(feature)
-}
-
 function mettreAJourPointClique(point) {
   if (!clickedPointSource) return
 
@@ -203,33 +173,6 @@ function mettreAJourPointClique(point) {
   clickedPointSource.addFeature(feature)
 }
 
-function activerDessin() {
-  if (!mapInstance) return
-
-  drawSource.clear()
-
-  if (drawInteraction) {
-    mapInstance.removeInteraction(drawInteraction)
-  }
-
-  drawInteraction = new Draw({
-    source: drawSource,
-    type: 'LineString'
-  })
-
-  mapInstance.addInteraction(drawInteraction)
-
-  drawInteraction.on('drawend', (event) => {
-    const coords3857 = event.feature.getGeometry().getCoordinates()
-    const coordsLV95 = coords3857.map(([x, y]) => webMercatorToLV95(x, y))
-
-    emit('draw-line', coordsLV95)
-
-    mapInstance.removeInteraction(drawInteraction)
-    drawInteraction = null
-  })
-}
-
 onMounted(async () => {
   await nextTick()
 
@@ -241,32 +184,6 @@ onMounted(async () => {
   mapReady = true
 
   updateDangerLayerVisibility(props.selectedDangerLayer)
-
-  profileSource = new VectorSource()
-  profileLayer = new VectorLayer({
-    source: profileSource,
-    style: new Style({
-      stroke: new Stroke({
-        color: '#dc2626',
-        width: 3
-      })
-    })
-  })
-  profileLayer.setZIndex(200)
-  mapInstance.addLayer(profileLayer)
-
-  drawSource = new VectorSource()
-  drawLayer = new VectorLayer({
-    source: drawSource,
-    style: new Style({
-      stroke: new Stroke({
-        color: '#2563eb',
-        width: 3
-      })
-    })
-  })
-  drawLayer.setZIndex(300)
-  mapInstance.addLayer(drawLayer)
 
   clickedPointSource = new VectorSource()
   clickedPointLayer = new VectorLayer({
@@ -285,18 +202,12 @@ onMounted(async () => {
   mapInstance.updateSize()
 
   mapInstance.on('singleclick', (event) => {
-    if (drawInteraction) return
-
     const [lon, lat] = toLonLat(event.coordinate)
     const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
 
     const point = { lon, lat, x, y }
     emit('map-click', point)
   })
-
-  if (props.drawnLine) {
-    mettreAJourProfilLigne(props.drawnLine)
-  }
 
   if (props.clickedPoint) {
     mettreAJourPointClique(props.clickedPoint)
@@ -324,14 +235,6 @@ watch(
   (layerId) => {
     updateDangerLayerVisibility(layerId)
   }
-)
-
-watch(
-  () => props.drawnLine,
-  (line) => {
-    mettreAJourProfilLigne(line)
-  },
-  { deep: true }
 )
 
 watch(
