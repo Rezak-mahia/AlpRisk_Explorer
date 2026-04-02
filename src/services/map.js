@@ -4,10 +4,8 @@ import TileLayer from 'ol/layer/Tile.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import VectorSource from 'ol/source/Vector.js'
 import GeoJSON from 'ol/format/GeoJSON.js'
-import Feature from 'ol/Feature.js'
-import Point from 'ol/geom/Point.js'
 import Overlay from 'ol/Overlay.js'
-import { Style, Circle, Fill, Stroke, Text } from 'ol/style.js'
+import { Style, Circle, Fill, Stroke } from 'ol/style.js'
 import { fromLonLat } from 'ol/proj.js'
 import WMTS, { optionsFromCapabilities } from 'ol/source/WMTS.js'
 
@@ -15,33 +13,6 @@ import {
   getSwisstopoWmtsCapabilities,
   fetchAllValaisAvalancheGeoJson
 } from '../services/geoAdmin.js'
-
-export function createSummitFeature(summit) {
-  const coordinates = fromLonLat([summit.lon, summit.lat])
-
-  const feature = new Feature({
-    geometry: new Point(coordinates),
-    summit
-  })
-
-  feature.setStyle(
-    new Style({
-      image: new Circle({
-        radius: 8,
-        fill: new Fill({ color: '#dc2626' }),
-        stroke: new Stroke({ color: '#ffffff', width: 2 })
-      }),
-      text: new Text({
-        text: summit.label,
-        offsetY: -18,
-        fill: new Fill({ color: '#111827' }),
-        stroke: new Stroke({ color: '#ffffff', width: 3 })
-      })
-    })
-  )
-
-  return feature
-}
 
 function getAvalancheStyleInfo(feature) {
   const props = feature.getProperties()
@@ -138,16 +109,7 @@ async function createAvalancheLayer() {
   return layer
 }
 
-export async function buildMap(target, summitFeatures, popupElement) {
-  const summitSource = new VectorSource({
-    features: summitFeatures
-  })
-
-  const summitLayer = new VectorLayer({
-    source: summitSource
-  })
-  summitLayer.setZIndex(100)
-
+export async function buildMap(target, popupElement) {
   const avalancheLayer = await createAvalancheLayer()
 
   const popupOverlay = new Overlay({
@@ -170,7 +132,7 @@ export async function buildMap(target, summitFeatures, popupElement) {
 
   const map = new Map({
     target,
-    layers: [swisstopoLayer, avalancheLayer, summitLayer],
+    layers: [swisstopoLayer, avalancheLayer],
     overlays: [popupOverlay],
     view: new View({
       center: fromLonLat([7.45, 46.15]),

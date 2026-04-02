@@ -54,6 +54,10 @@ const props = defineProps({
   selectedAvalanche: {
     type: Object,
     default: null
+  },
+  selectedDangerLayer: {
+    type: String,
+    default: null
   }
 })
 
@@ -272,6 +276,12 @@ async function chargerAvalanches3D() {
 
   styliserAvalanches(avalancheDataSource)
   viewer.dataSources.add(avalancheDataSource)
+  mettreAJourDangerLayer3D(props.selectedDangerLayer)
+}
+
+function mettreAJourDangerLayer3D(layerId) {
+  if (!avalancheDataSource) return
+  avalancheDataSource.show = layerId === 'avalanche' || !layerId
 }
 
 async function chargeBuildings3D() {
@@ -349,6 +359,13 @@ watch(
     mettreAJourPointActif()
   },
   { deep: true }
+)
+
+watch(
+  () => props.selectedDangerLayer,
+  (layerId) => {
+    mettreAJourDangerLayer3D(layerId)
+  }
 )
 
 watch(

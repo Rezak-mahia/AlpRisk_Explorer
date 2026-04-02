@@ -41,7 +41,7 @@ import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import Draw from 'ol/interaction/Draw.js'
 import { Style, Stroke, Circle, Fill } from 'ol/style.js'
-import { createSummitFeature, buildMap } from '../services/map.js'
+import { buildMap } from '../services/map.js'
 import {
   webMercatorToLV95,
   lv95ToWebMercator
@@ -71,11 +71,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'select-summit',
   'map-click',
   'draw-line',
-  'select-avalanche',
-  'center-valais'
+  'select-avalanche'
 ])
 
 const mapEl = ref(null)
@@ -98,10 +96,6 @@ let drawInteraction = null
 
 let clickedPointSource = null
 let clickedPointLayer = null
-
-function summitToMapCoords(summit) {
-  return fromLonLat([summit.lon, summit.lat])
-}
 
 function dangerLabelFromValue(value) {
   const n = Number(value)
@@ -157,28 +151,9 @@ function showFeaturePopup(coordinate, mode, data) {
   popupOverlay.setPosition(coordinate)
 }
 
-function showSummitPopup(summit) {
-  const center = summitToMapCoords(summit)
-  showFeaturePopup(center, 'summit', summit)
-}
-
 function showPointPopup(point) {
   const coord = fromLonLat([point.lon, point.lat])
   showFeaturePopup(coord, 'point', point)
-}
-
-function showSummitOnMap(summit) {
-  if (!summit || !mapInstance || !popupOverlay) return
-
-  const center = summitToMapCoords(summit)
-
-  mapInstance.getView().animate({
-    center,
-    zoom: 11,
-    duration: 800
-  })
-
-  showSummitPopup(summit)
 }
 
 function centrerValais() {
@@ -258,8 +233,7 @@ function activerDessin() {
 onMounted(async () => {
   await nextTick()
 
-  const summitFeatures = props.summits.map(createSummitFeature)
-  const built = await buildMap(mapEl.value, summitFeatures, popupEl.value)
+  const built = await buildMap(mapEl.value, popupEl.value)
 
   mapInstance = built.map
   popupOverlay = built.popupOverlay
@@ -320,10 +294,6 @@ onMounted(async () => {
     emit('map-click', point)
   })
 
-  if (props.selectedSummit) {
-    showSummitOnMap(props.selectedSummit)
-  }
-
   if (props.drawnLine) {
     mettreAJourProfilLigne(props.drawnLine)
   }
@@ -336,7 +306,9 @@ onMounted(async () => {
 
 function updateDangerLayerVisibility(layerId) {
   if (!avalancheLayer) return
-  avalancheLayer.setVisible(layerId === 'avalanche')
+  avalancheLayer.setVisible(
+    layerId === 'avalanche' || !layerId
+  )
 }
 
 watch(

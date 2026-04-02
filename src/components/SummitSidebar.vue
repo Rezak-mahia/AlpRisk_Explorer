@@ -41,6 +41,8 @@
       </div>
       <button class="btn-primary" @click="goToMN95">Localiser la saisie</button>
     </div>
+
+    <hr class="divider" />
   </aside>
 </template>
 
@@ -93,7 +95,10 @@ function goToMN95() {
   emit('select-summit', {
     id: 'mn95-' + Date.now(),
     label: `Saisie MN95: ${mn95E.value} / ${mn95N.value}`,
-    lon, lat, altitude: null, canton: 'Saisie manuelle'
+    lon,
+    lat,
+    x: mn95E.value,
+    y: mn95N.value
   })
 }
 </script>
