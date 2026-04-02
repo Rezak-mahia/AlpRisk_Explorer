@@ -5,7 +5,6 @@
     <div class="info-box">
       <p>📍 <strong>Choisir un point :</strong></p>
       <ul>
-        <li>Sélectionnez un sommet dans la liste</li>
         <li>Saisissez des coordonnées <strong>MN95</strong></li>
         <li><strong>Cliquez</strong> sur la carte 2D</li>
       </ul>
@@ -27,15 +26,6 @@
     </div>
 
     <hr class="divider" />
-
-    <input v-model="search" class="search-input" type="text" placeholder="Filtrer les sommets..." />
-
-    <div v-for="s in filtered" :key="s.id" :class="['card', { active: selectedSummit?.id === s.id }]">
-      <button class="card-btn" @click="$emit('select-summit', s)">
-        <strong>{{ s.label }}</strong>
-        <div class="details">{{ s.altitude }} m - {{ s.canton }}</div>
-      </button>
-    </div>
   </aside>
 </template>
 
@@ -44,26 +34,23 @@ import { computed, ref } from 'vue'
 import proj4 from 'proj4'
 
 const props = defineProps({
-  summits: { type: Array, required: true },
-  selectedSummit: { type: Object, default: null }
+  summits: { type: Array, required: true }
 })
 
-const emit = defineEmits(['select-summit'])
-const search = ref('')
+const emit = defineEmits(['select-point'])
 const mn95E = ref(null)
 const mn95N = ref(null)
-
-const filtered = computed(() => {
-  return props.summits.filter(s => s.label.toLowerCase().includes(search.value.toLowerCase()))
-})
 
 function goToMN95() {
   if (!mn95E.value || !mn95N.value) return
   const [lon, lat] = proj4('EPSG:2056', 'EPSG:4326', [mn95E.value, mn95N.value])
-  emit('select-summit', {
+  emit('select-point', {
     id: 'mn95-' + Date.now(),
     label: `Saisie MN95: ${mn95E.value} / ${mn95N.value}`,
-    lon, lat, altitude: null, canton: 'Saisie manuelle'
+    lon,
+    lat,
+    x: mn95E.value,
+    y: mn95N.value
   })
 }
 </script>
