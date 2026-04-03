@@ -5,7 +5,9 @@
     <p v-if="status" class="status">{{ status }}</p>
 
     <div v-if="pickedInfo" class="info-box">
-      <strong>Zone d’avalanche</strong>
+      <strong v-if="pickedInfo.typeZone === 'avalanche'">Zone d'avalanche</strong>
+      <strong v-else-if="pickedInfo.typeZone === 'glissement'">Zone de glissement</strong>
+      <strong v-else-if="pickedInfo.typeZone === 'hydrologie'">Zone d'hydrologie</strong>
       <div v-if="pickedInfo.dangerLabel">Danger : {{ pickedInfo.dangerLabel }}</div>
       <div v-if="pickedInfo.commune">Commune : {{ pickedInfo.commune }}</div>
       <div v-if="pickedInfo.id">Identifiant : {{ pickedInfo.id }}</div>
@@ -30,12 +32,13 @@ import {
   ClassificationType,
   Cesium3DTileset
 } from 'cesium'
-import { lv95ToLonLat } from '../services/projection.js'
+
 import {
   SWISSTOPO_TERRAIN_URL,
   SWISSTOPO_BUILDINGS_URL,
-  CESIUM_ION_TOKEN,
-  fetchAllValaisAvalancheGeoJson
+  fetchAllValaisAvalancheGeoJson,
+  fetchAllValaisGlissementGeoJson,
+  fetchAllValaisHydrologieGeoJson
 } from '../services/geoAdmin.js'
 
 const props = defineProps({
@@ -65,6 +68,8 @@ let viewer = null
 let buildingsTileset = null
 let activePointEntity = null
 let avalancheDataSource = null
+let glissementDataSource = null
+let hydrologieDataSource = null
 let clickHandler = null
 
 function dangerLabelFromValue(value) {
@@ -168,6 +173,167 @@ function styliserAvalanches(dataSource) {
   }
 }
 
+function extractGlissementDataFromEntity(entity) {
+  const props = entity?.properties || {}
+
+  const read = (key) => {
+    const value = props[key]
+    if (value && typeof value.getValue === 'function') {
+      return value.getValue()
+    }
+    return value ?? null
+  }
+
+  const danger = read('DANGER')
+
+  return {
+    dangerValue: danger,
+    dangerLabel: dangerLabelFromValue(danger),
+    typeZone: 'glissement',
+    commune:
+      read('COMMUNE') ||
+      read('NOM_COMMUNE') ||
+      read('COMMUNE_NOM') ||
+      read('COMMNAME') ||
+      null,
+    id: read('OBJECTID') || read('FID') || read('ID') || null
+  }
+}
+
+function getCesiumGlissementStyle(entity) {
+  const info = extractGlissementDataFromEntity(entity)
+  const danger = Number(info.dangerValue)
+
+  if (danger === 4) {
+    return {
+      material: Color.fromBytes(204, 85, 0, 178),
+      outline: Color.fromBytes(102, 43, 0, 255)
+    }
+  }
+
+  if (danger === 3) {
+    return {
+      material: Color.fromBytes(230, 126, 34, 178),
+      outline: Color.fromBytes(152, 76, 0, 255)
+    }
+  }
+
+  if (danger === 2) {
+    return {
+      material: Color.fromBytes(241, 196, 15, 178),
+      outline: Color.fromBytes(183, 149, 11, 255)
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      material: Color.fromBytes(241, 196, 15, 100),
+      outline: Color.fromBytes(241, 196, 15, 255)
+    }
+  }
+
+  if (danger === 0) {
+    return {
+      material: Color.fromBytes(189, 195, 199, 70),
+      outline: Color.fromBytes(127, 140, 141, 150)
+    }
+  }
+
+  return {
+    material: Color.GRAY.withAlpha(0.35),
+    outline: Color.DARKGRAY
+  }
+}
+
+function styliserGlissements(dataSource) {
+  for (const entity of dataSource.entities.values) {
+    if (!entity.polygon) continue
+
+    const style = getCesiumGlissementStyle(entity)
+    entity.polygon.material = style.material
+    entity.polygon.outline = true
+    entity.polygon.outlineColor = style.outline
+    entity.polygon.classificationType = ClassificationType.TERRAIN
+  }
+}
+
+function extractHydrologieDataFromEntity(entity) {
+  const props = entity?.properties || {}
+
+  const read = (key) => {
+    const value = props[key]
+    if (value && typeof value.getValue === 'function') {
+      return value.getValue()
+    }
+    return value ?? null
+  }
+
+  const danger = read('DEGRE_DANGER_CODE')
+
+  return {
+    dangerValue: danger,
+    dangerLabel: dangerLabelFromValue(danger),
+    typeZone: 'hydrologie',
+    commune:
+      read('COMMUNE') ||
+      read('NOM_COMMUNE') ||
+      read('COMMUNE_NOM') ||
+      read('COMMNAME') ||
+      null,
+    id: read('OBJECTID') || read('FID') || read('ID') || null
+  }
+}
+
+function getCesiumHydrologieStyle(entity) {
+  const info = extractHydrologieDataFromEntity(entity)
+  const danger = Number(info.dangerValue)
+
+  if (danger === 4) {
+    return {
+      material: Color.fromBytes(204, 0, 0, 178),
+      outline: Color.fromBytes(102, 0, 0, 255)
+    }
+  }
+
+  if (danger === 3) {
+    return {
+      material: Color.fromBytes(255, 102, 0, 178),
+      outline: Color.fromBytes(204, 51, 0, 255)
+    }
+  }
+
+  if (danger === 2) {
+    return {
+      material: Color.fromBytes(102, 153, 255, 178),
+      outline: Color.fromBytes(51, 102, 204, 255)
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      material: Color.fromBytes(102, 153, 255, 100),
+      outline: Color.fromBytes(102, 153, 255, 255)
+    }
+  }
+
+  return {
+    material: Color.fromBytes(173, 216, 230, 140),
+    outline: Color.fromBytes(51, 102, 204, 200)
+  }
+}
+
+function styliserHydrologie(dataSource) {
+  for (const entity of dataSource.entities.values) {
+    if (!entity.polygon) continue
+
+    const style = getCesiumHydrologieStyle(entity)
+    entity.polygon.material = style.material
+    entity.polygon.outline = true
+    entity.polygon.outlineColor = style.outline
+    entity.polygon.classificationType = ClassificationType.TERRAIN
+  }
+}
+
 function seDeplacerVers(lon, lat, label = 'Point') {
   if (!viewer) return
 
@@ -246,12 +412,44 @@ async function chargerAvalanches3D() {
 
   styliserAvalanches(avalancheDataSource)
   viewer.dataSources.add(avalancheDataSource)
-  mettreAJourDangerLayer3D(props.selectedDangerLayer)
+}
+
+async function chargerGlissements3D() {
+  if (!viewer) return
+
+  const geojson = await fetchAllValaisGlissementGeoJson()
+
+  glissementDataSource = await GeoJsonDataSource.load(geojson, {
+    clampToGround: true
+  })
+
+  styliserGlissements(glissementDataSource)
+  viewer.dataSources.add(glissementDataSource)
+}
+
+async function chargerHydrologie3D() {
+  if (!viewer) return
+
+  const geojson = await fetchAllValaisHydrologieGeoJson()
+
+  hydrologieDataSource = await GeoJsonDataSource.load(geojson, {
+    clampToGround: true
+  })
+
+  styliserHydrologie(hydrologieDataSource)
+  viewer.dataSources.add(hydrologieDataSource)
 }
 
 function mettreAJourDangerLayer3D(layerId) {
-  if (!avalancheDataSource) return
-  avalancheDataSource.show = layerId === 'avalanche' || !layerId
+  if (avalancheDataSource) {
+    avalancheDataSource.show = layerId === 'avalanche'
+  }
+  if (glissementDataSource) {
+    glissementDataSource.show = layerId === 'glissement'
+  }
+  if (hydrologieDataSource) {
+    hydrologieDataSource.show = layerId === 'hydrologie'
+  }
 }
 
 async function chargeBuildings3D() {
@@ -276,10 +474,29 @@ function installerClickInfo3D() {
     const entity = picked.id
     if (!entity?.properties) return
 
-    const info = extractAvalancheDataFromEntity(entity)
-    if (info.dangerValue == null) return
+    // Essayer en tant que zone d'avalanche
+    let info = extractAvalancheDataFromEntity(entity)
+    if (info.dangerValue != null) {
+      info.typeZone = 'avalanche'
+      pickedInfo.value = info
+      return
+    }
 
-    pickedInfo.value = info
+    // Essayer en tant que zone de glissement
+    info = extractGlissementDataFromEntity(entity)
+    if (info.dangerValue != null) {
+      info.typeZone = 'glissement'
+      pickedInfo.value = info
+      return
+    }
+
+    // Essayer en tant que zone d'hydrologie
+    info = extractHydrologieDataFromEntity(entity)
+    if (info.id != null || info.commune != null) {
+      info.typeZone = 'hydrologie'
+      pickedInfo.value = info
+      return
+    }
   }, ScreenSpaceEventType.LEFT_CLICK)
 }
 
@@ -307,9 +524,12 @@ onMounted(async () => {
     })
 
     await chargerAvalanches3D()
+    await chargerGlissements3D()
+    await chargerHydrologie3D()
     await chargeBuildings3D()
     installerClickInfo3D()
     mettreAJourPointActif()
+    mettreAJourDangerLayer3D(props.selectedDangerLayer)
 
     status.value = ''
   } catch (error) {

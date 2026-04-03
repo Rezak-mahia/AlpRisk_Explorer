@@ -20,7 +20,18 @@
         <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
         <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
       </template>
+      <template v-else-if="popupMode === 'glissement'">
+        <strong>Zone de glissement</strong>
+        <div v-if="popupData?.dangerLabel">Danger : {{ popupData.dangerLabel }}</div>
+        <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
+        <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
+      </template>
 
+      <template v-else-if="popupMode === 'hydrologie'">
+        <strong>Zone d'hydrologie</strong>
+        <div v-if="popupData?.commune">Commune : {{ popupData.commune }}</div>
+        <div v-if="popupData?.id">Identifiant : {{ popupData.id }}</div>
+      </template>
       <template v-else-if="popupMode === 'point'">
         <strong>Point sélectionné</strong>
         <div>E : {{ Math.round(popupData?.x || 0) }}</div>
@@ -46,10 +57,6 @@ import {
 } from '../services/projection.js'
 
 const props = defineProps({
-  summits: {
-    type: Array,
-    required: true
-  },
   selectedSummit: {
     type: Object,
     default: null
@@ -65,8 +72,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'map-click',
-  'select-avalanche'
+  'map-click'
 ])
 
 const mapEl = ref(null)
@@ -79,6 +85,8 @@ let mapInstance = null
 let popupOverlay = null
 let mapReady = false
 let avalancheLayer = null
+let glissementLayer = null
+let hydrologieLayer = null
 
 let clickedPointSource = null
 let clickedPointLayer = null
@@ -94,40 +102,7 @@ function dangerLabelFromValue(value) {
   return `${value ?? ''}`
 }
 
-function extractAvalancheData(feature) {
-  const props = feature.getProperties()
-  const danger = props.DEGRE_DANGER ?? null
 
-  return {
-    dangerValue: danger,
-    dangerLabel: dangerLabelFromValue(danger),
-    commune:
-      props.COMMUNE ||
-      props.NOM_COMMUNE ||
-      props.COMMUNE_NOM ||
-      props.COMMNAME ||
-      null,
-    id:
-      props.OBJECTID ||
-      props.FID ||
-      props.ID ||
-      null
-  }
-}
-
-function buildSelectedAvalanchePayload(feature) {
-  const data = extractAvalancheData(feature)
-  const geometry = feature.getGeometry()
-  const extent = geometry.getExtent()
-  const center3857 = getCenter(extent)
-  const [lon, lat] = toLonLat(center3857)
-
-  return {
-    ...data,
-    lon,
-    lat
-  }
-}
 
 function showFeaturePopup(coordinate, mode, data) {
   if (!popupOverlay) return
@@ -181,6 +156,8 @@ onMounted(async () => {
   mapInstance = built.map
   popupOverlay = built.popupOverlay
   avalancheLayer = built.avalancheLayer
+  glissementLayer = built.glissementLayer
+  hydrologieLayer = built.hydrologieLayer
   mapReady = true
 
   updateDangerLayerVisibility(props.selectedDangerLayer)
@@ -201,11 +178,37 @@ onMounted(async () => {
 
   mapInstance.updateSize()
 
+  // Ajouter les click handlers pour les couches de danger
+  const pointerMoveHandler = (evt) => {
+    if (evt.dragging) {
+      return
+    }
+    
+    const pixel = mapInstance.getEventPixel(evt.originalEvent)
+    let showPointer = false
+    
+    mapInstance.forEachFeatureAtPixel(pixel, (feature, layer) => {
+      // Ne montrer le pointer que pour les sommets/points d'intérêt
+      if (layer && layer.get('layerType') === 'summit') {
+        showPointer = true
+      }
+    })
+    
+    if (showPointer) {
+      mapInstance.getTargetElement().style.cursor = 'pointer'
+    } else {
+      mapInstance.getTargetElement().style.cursor = 'auto'
+    }
+  }
+  
+  mapInstance.on('pointermove', pointerMoveHandler)
+
   mapInstance.on('singleclick', (event) => {
     const [lon, lat] = toLonLat(event.coordinate)
     const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
-
     const point = { lon, lat, x, y }
+
+    // Émettre toujours un point cliqué, même sur les couches de danger
     emit('map-click', point)
   })
 
@@ -216,10 +219,32 @@ onMounted(async () => {
 })
 
 function updateDangerLayerVisibility(layerId) {
-  if (!avalancheLayer) return
-  avalancheLayer.setVisible(
-    layerId === 'avalanche' || !layerId
-  )
+  if (!avalancheLayer || !glissementLayer || !hydrologieLayer) return
+  
+  avalancheLayer.setVisible(layerId === 'avalanche')
+  glissementLayer.setVisible(layerId === 'glissement')
+  hydrologieLayer.setVisible(layerId === 'hydrologie')
+}
+
+function showSummitOnMap(summit) {
+  if (!summit || !mapInstance) return
+
+  const center = fromLonLat([summit.lon, summit.lat])
+  
+  mapInstance.getView().animate({
+    center,
+    zoom: 12,
+    duration: 700
+  })
+
+  // Afficher le point
+  if (clickedPointSource) {
+    clickedPointSource.clear()
+    const feature = new Feature({
+      geometry: new Point(center)
+    })
+    clickedPointSource.addFeature(feature)
+  }
 }
 
 watch(

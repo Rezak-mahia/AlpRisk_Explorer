@@ -2,7 +2,6 @@
   <div class="app-layout">
     <aside class="sidebar">
       <SummitSidebar
-        :summits="summits"
         :selected-summit="selectedSummit"
         :selected-danger-layer="selectedDangerLayer"
         @select-summit="handleSelectSummit"
@@ -13,12 +12,10 @@
     <main class="main-panel">
       <section class="left-panel">
         <MapView
-          :summits="summits"
           :selected-summit="selectedSummit"
           :selected-danger-layer="selectedDangerLayer"
           :clicked-point="clickedPoint"
           @map-click="handleMapClick"
-          @select-avalanche="handleSelectAvalanche"
         />
       </section>
 
@@ -42,6 +39,7 @@ import SummitSidebar from './components/SummitSidebar.vue'
 const summits = ref([])
 const clickedPoint = ref(null)
 const selectedAvalanche = ref(null)
+const selectedSummit = ref(null)
 const selectedDangerLayer = ref('avalanche')
 
 async function loadSummits() {
@@ -57,19 +55,15 @@ async function loadSummits() {
   }
 }
 
-function handleSelectPoint(point) {
-  clickedPoint.value = point
+function handleSelectSummit(summit) {
+  selectedSummit.value = summit
+  clickedPoint.value = null
   selectedAvalanche.value = null
 }
 
 function handleMapClick(point) {
   clickedPoint.value = point
   selectedAvalanche.value = null
-}
-
-function handleSelectAvalanche(avalanche) {
-  selectedAvalanche.value = avalanche
-  clickedPoint.value = null
 }
 
 function handleSelectDangerLayer(layerId) {

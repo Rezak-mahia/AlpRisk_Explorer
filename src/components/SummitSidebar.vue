@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import proj4 from 'proj4'
 
 const props = defineProps({

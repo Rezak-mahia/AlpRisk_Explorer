@@ -11,7 +11,9 @@ import WMTS, { optionsFromCapabilities } from 'ol/source/WMTS.js'
 
 import {
   getSwisstopoWmtsCapabilities,
-  fetchAllValaisAvalancheGeoJson
+  fetchAllValaisAvalancheGeoJson,
+  fetchAllValaisGlissementGeoJson,
+  fetchAllValaisHydrologieGeoJson
 } from '../services/geoAdmin.js'
 
 function getAvalancheStyleInfo(feature) {
@@ -88,6 +90,129 @@ function createAvalancheStyle(feature) {
   })
 }
 
+function getGlissementStyleInfo(feature) {
+  const props = feature.getProperties()
+  const danger = Number(props.DANGER ?? 0)
+
+  if (danger === 4) {
+    return {
+      fill: 'rgba(204, 85, 0, 0.70)',
+      stroke: 'rgba(102, 43, 0, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 3) {
+    return {
+      fill: 'rgba(230, 126, 34, 0.70)',
+      stroke: 'rgba(152, 76, 0, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 2) {
+    return {
+      fill: 'rgba(241, 196, 15, 0.70)',
+      stroke: 'rgba(183, 149, 11, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      fill: 'rgba(241, 196, 15, 0.35)',
+      stroke: 'rgba(241, 196, 15, 1)',
+      lineDash: [6, 6]
+    }
+  }
+
+  if (danger === 0) {
+    return {
+      fill: 'rgba(189, 195, 199, 0.20)',
+      stroke: 'rgba(127, 140, 141, 0.6)',
+      lineDash: undefined
+    }
+  }
+
+  return {
+    fill: 'rgba(160, 160, 160, 0.35)',
+    stroke: 'rgba(104, 104, 104, 1)',
+    lineDash: undefined
+  }
+}
+
+function createGlissementStyle(feature) {
+  const info = getGlissementStyleInfo(feature)
+
+  return new Style({
+    stroke: new Stroke({
+      color: info.stroke,
+      width: 1.5,
+      lineDash: info.lineDash
+    }),
+    fill: new Fill({
+      color: info.fill
+    })
+  })
+}
+
+function getHydrologieStyleInfo(feature) {
+  const props = feature.getProperties()
+  const danger = Number(props.DEGRE_DANGER_CODE ?? 0)
+
+  if (danger === 4) {
+    return {
+      fill: 'rgba(204, 0, 0, 0.70)',
+      stroke: 'rgba(102, 0, 0, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 3) {
+    return {
+      fill: 'rgba(255, 102, 0, 0.70)',
+      stroke: 'rgba(204, 51, 0, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 2) {
+    return {
+      fill: 'rgba(102, 153, 255, 0.70)',
+      stroke: 'rgba(51, 102, 204, 1)',
+      lineDash: undefined
+    }
+  }
+
+  if (danger === 1) {
+    return {
+      fill: 'rgba(102, 153, 255, 0.35)',
+      stroke: 'rgba(102, 153, 255, 1)',
+      lineDash: [6, 6]
+    }
+  }
+
+  return {
+    fill: 'rgba(173, 216, 230, 0.70)',
+    stroke: 'rgba(51, 102, 204, 1)',
+    lineDash: undefined
+  }
+}
+
+function createHydrologieStyle(feature) {
+  const info = getHydrologieStyleInfo(feature)
+
+  return new Style({
+    stroke: new Stroke({
+      color: info.stroke,
+      width: 2
+    }),
+    fill: new Fill({
+      color: info.fill
+    })
+  })
+}
+
 async function createAvalancheLayer() {
   const geojson = await fetchAllValaisAvalancheGeoJson()
 
@@ -109,8 +234,52 @@ async function createAvalancheLayer() {
   return layer
 }
 
+async function createGlissementLayer() {
+  const geojson = await fetchAllValaisGlissementGeoJson()
+
+  const source = new VectorSource({
+    features: new GeoJSON().readFeatures(geojson, {
+      dataProjection: 'EPSG:4326',
+      featureProjection: 'EPSG:3857'
+    })
+  })
+
+  const layer = new VectorLayer({
+    source,
+    style: createGlissementStyle
+  })
+
+  layer.set('layerType', 'glissement')
+  layer.setZIndex(20)
+
+  return layer
+}
+
+async function createHydrologieLayer() {
+  const geojson = await fetchAllValaisHydrologieGeoJson()
+
+  const source = new VectorSource({
+    features: new GeoJSON().readFeatures(geojson, {
+      dataProjection: 'EPSG:4326',
+      featureProjection: 'EPSG:3857'
+    })
+  })
+
+  const layer = new VectorLayer({
+    source,
+    style: createHydrologieStyle
+  })
+
+  layer.set('layerType', 'hydrologie')
+  layer.setZIndex(20)
+
+  return layer
+}
+
 export async function buildMap(target, popupElement) {
   const avalancheLayer = await createAvalancheLayer()
+  const glissementLayer = await createGlissementLayer()
+  const hydrologieLayer = await createHydrologieLayer()
 
   const popupOverlay = new Overlay({
     element: popupElement,
@@ -132,7 +301,7 @@ export async function buildMap(target, popupElement) {
 
   const map = new Map({
     target,
-    layers: [swisstopoLayer, avalancheLayer],
+    layers: [swisstopoLayer, avalancheLayer, glissementLayer, hydrologieLayer],
     overlays: [popupOverlay],
     view: new View({
       center: fromLonLat([7.45, 46.15]),
@@ -143,6 +312,8 @@ export async function buildMap(target, popupElement) {
   return {
     map,
     popupOverlay,
-    avalancheLayer
+    avalancheLayer,
+    glissementLayer,
+    hydrologieLayer
   }
 }

@@ -4,10 +4,6 @@ import WMTSCapabilities from 'ol/format/WMTSCapabilities.js'
 // SERVICES CENTRALISÉS
 // =========================
 
-// geo.admin
-export const SEARCH_BASE_URL =
-  'https://api3.geo.admin.ch/rest/services/ech/SearchServer'
-
 export const SWISSTOPO_WMTS_CAPABILITIES_URL =
   'https://wmts.geo.admin.ch/EPSG/3857/1.0.0/WMTSCapabilities.xml'
 
@@ -30,14 +26,17 @@ export const VALAIS_DANAT_MAPSERVER_URL =
   'https://sit.vs.ch/arcgis/rest/services/DANAT/MapServer'
 
 export const VALAIS_AVALANCHE_LAYER_ID = 1001
+export const VALAIS_GLISSEMENT_LAYER_ID = 1207
+export const VALAIS_HYDROLOGIE_LAYER_ID = 1102
 export const VALAIS_AVALANCHE_PAGE_SIZE = 2000
 
-function buildAvalancheQueryUrl(
+function buildQueryUrl(
+  layerId,
   offset = 0,
   recordCount = VALAIS_AVALANCHE_PAGE_SIZE
 ) {
   const url = new URL(
-    `${VALAIS_DANAT_MAPSERVER_URL}/${VALAIS_AVALANCHE_LAYER_ID}/query`
+    `${VALAIS_DANAT_MAPSERVER_URL}/${layerId}/query`
   )
 
   url.searchParams.set('where', '1=1')
@@ -52,6 +51,13 @@ function buildAvalancheQueryUrl(
   return url.toString()
 }
 
+function buildAvalancheQueryUrl(
+  offset = 0,
+  recordCount = VALAIS_AVALANCHE_PAGE_SIZE
+) {
+  return buildQueryUrl(VALAIS_AVALANCHE_LAYER_ID, offset, recordCount)
+}
+
 export async function fetchAllValaisAvalancheGeoJson() {
   const allFeatures = []
   let offset = 0
@@ -62,6 +68,64 @@ export async function fetchAllValaisAvalancheGeoJson() {
 
     if (!response.ok) {
       throw new Error("Erreur lors du chargement paginé des avalanches du Valais")
+    }
+
+    const json = await response.json()
+    const features = json?.features || []
+    allFeatures.push(...features)
+
+    if (features.length < VALAIS_AVALANCHE_PAGE_SIZE) {
+      break
+    }
+
+    offset += VALAIS_AVALANCHE_PAGE_SIZE
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: allFeatures
+  }
+}
+
+export async function fetchAllValaisGlissementGeoJson() {
+  const allFeatures = []
+  let offset = 0
+
+  while (true) {
+    const url = buildQueryUrl(VALAIS_GLISSEMENT_LAYER_ID, offset, VALAIS_AVALANCHE_PAGE_SIZE)
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error("Erreur lors du chargement paginé des glissements du Valais")
+    }
+
+    const json = await response.json()
+    const features = json?.features || []
+    allFeatures.push(...features)
+
+    if (features.length < VALAIS_AVALANCHE_PAGE_SIZE) {
+      break
+    }
+
+    offset += VALAIS_AVALANCHE_PAGE_SIZE
+  }
+
+  return {
+    type: 'FeatureCollection',
+    features: allFeatures
+  }
+}
+
+export async function fetchAllValaisHydrologieGeoJson() {
+  const allFeatures = []
+  let offset = 0
+
+  while (true) {
+    const url = buildQueryUrl(VALAIS_HYDROLOGIE_LAYER_ID, offset, VALAIS_AVALANCHE_PAGE_SIZE)
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error("Erreur lors du chargement paginé des données d'hydrologie du Valais")
     }
 
     const json = await response.json()
@@ -95,26 +159,4 @@ export async function getSwisstopoWmtsCapabilities() {
 
   const text = await response.text()
   return parser.read(text)
-}
-
-// =========================
-// APIs déjà présentes
-// =========================
-
-export async function searchLocations(searchText) {
-  const url = new URL(SEARCH_BASE_URL)
-  url.searchParams.set('type', 'locations')
-  url.searchParams.set('searchText', searchText)
-  url.searchParams.set('returnGeometry', 'true')
-  url.searchParams.set('sr', '2056')
-  url.searchParams.set('limit', '10')
-
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error('Erreur lors de la recherche geo.admin')
-  }
-
-
-
-  return response.json()
 }
