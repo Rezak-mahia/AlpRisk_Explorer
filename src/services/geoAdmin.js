@@ -31,7 +31,8 @@ export const VALAIS_DANAT_MAPSERVER_URL =
   'https://sit.vs.ch/arcgis/rest/services/DANAT/MapServer'
 
 export const VALAIS_AVALANCHE_LAYER_ID = 1001
-export const VALAIS_GLISSEMENT_LAYER_ID = 1207
+export const VALAIS_GLISSEMENT_PERMANENT_LAYER_ID = 1204
+export const VALAIS_GLISSEMENT_SPONTANE_LAYER_ID = 1207
 export const VALAIS_HYDROLOGIE_LAYER_ID = 1102
 export const VALAIS_QUERY_PAGE_SIZE = 2000
 
@@ -88,11 +89,25 @@ export function fetchAllValaisAvalancheGeoJson() {
   )
 }
 
-export function fetchAllValaisGlissementGeoJson() {
-  return fetchAllValaisLayerGeoJson(
-    VALAIS_GLISSEMENT_LAYER_ID,
-    "Erreur lors du chargement paginé des glissements du Valais"
-  )
+export async function fetchAllValaisGlissementGeoJson() {
+  const [permanentGeoJson, spontaneGeoJson] = await Promise.all([
+    fetchAllValaisLayerGeoJson(
+      VALAIS_GLISSEMENT_PERMANENT_LAYER_ID,
+      "Erreur lors du chargement paginé des glissements permanents du Valais"
+    ),
+    fetchAllValaisLayerGeoJson(
+      VALAIS_GLISSEMENT_SPONTANE_LAYER_ID,
+      "Erreur lors du chargement paginé des glissements spontanés du Valais"
+    )
+  ])
+
+  return {
+    type: 'FeatureCollection',
+    features: [
+      ...(permanentGeoJson.features || []),
+      ...(spontaneGeoJson.features || [])
+    ]
+  }
 }
 
 export function fetchAllValaisHydrologieGeoJson() {
