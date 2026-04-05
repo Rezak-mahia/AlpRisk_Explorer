@@ -1,8 +1,7 @@
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar-content">
     <h1 class="title">Analyse des dangers naturels en Valais</h1>
-    
-    <!-- Section 1: Bulle "Choisir un point d'intérêt" -->
+
     <div class="info-box">
       <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
       <ul>
@@ -11,23 +10,35 @@
       </ul>
     </div>
 
-    <!-- Section 2: Recherche MN95 -->
     <div class="mn95-section">
       <h2 class="section-label">Recherche MN95 (LV95)</h2>
       <div class="input-grid">
         <div class="field">
           <label>Est (E)</label>
-          <input v-model.number="mn95E" type="number" placeholder="ex: 2600000" class="no-spinner" />
+          <input
+            v-model.number="mn95E"
+            type="number"
+            placeholder="ex: 2600000"
+            class="no-spinner"
+          />
         </div>
+
         <div class="field">
           <label>Nord (N)</label>
-          <input v-model.number="mn95N" type="number" placeholder="ex: 1200000" class="no-spinner" />
+          <input
+            v-model.number="mn95N"
+            type="number"
+            placeholder="ex: 1200000"
+            class="no-spinner"
+          />
         </div>
       </div>
-      <button class="btn-primary" @click="goToMN95">Localiser la saisie</button>
+
+      <button class="btn-primary" @click="goToMN95">
+        Localiser la saisie
+      </button>
     </div>
 
-    <!-- Section 3: Bulle "Choisir une couche" -->
     <div class="info-box">
       <p>📍 <strong>Choisir une couche :</strong></p>
       <ul>
@@ -36,7 +47,6 @@
       </ul>
     </div>
 
-    <!-- Section 4: Sélection de la couche de danger -->
     <div class="layer-select-section">
       <h2 class="section-label">Couche de danger naturel</h2>
       <select v-model="selectedLayerId" @change="selectDangerLayer">
@@ -52,14 +62,16 @@
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import proj4 from 'proj4'
+import { lv95ToLonLat } from '../services/projection.js'
 
 const props = defineProps({
-  selectedSummit: { type: Object, default: null },
-  selectedDangerLayer: { type: String, default: null }
+  selectedDangerLayer: {
+    type: String,
+    default: 'avalanche'
+  }
 })
 
-const emit = defineEmits(['select-summit', 'select-danger-layer'])
+const emit = defineEmits(['select-location', 'select-danger-layer'])
 
 const dangerLayers = [
   { id: 'avalanche', label: 'Avalanche' },
@@ -67,7 +79,9 @@ const dangerLayers = [
   { id: 'hydrologie', label: 'Hydrologie' }
 ]
 
-const selectedLayerId = ref(props.selectedDangerLayer || dangerLayers[0].id)
+const selectedLayerId = ref(props.selectedDangerLayer)
+const mn95E = ref(null)
+const mn95N = ref(null)
 
 watch(
   () => props.selectedDangerLayer,
@@ -79,24 +93,21 @@ watch(
 )
 
 onMounted(() => {
-  if (!props.selectedDangerLayer) {
-    selectDangerLayer()
-  }
+  selectDangerLayer()
 })
-
-const mn95E = ref(null)
-const mn95N = ref(null)
 
 function selectDangerLayer() {
   emit('select-danger-layer', selectedLayerId.value)
 }
 
 function goToMN95() {
-  if (!mn95E.value || !mn95N.value) return
-  const [lon, lat] = proj4('EPSG:2056', 'EPSG:4326', [mn95E.value, mn95N.value])
-  emit('select-summit', {
-    id: 'mn95-' + Date.now(),
-    label: `Saisie MN95: ${mn95E.value} / ${mn95N.value}`,
+  if (mn95E.value == null || mn95N.value == null) return
+
+  const { lon, lat } = lv95ToLonLat(mn95E.value, mn95N.value)
+
+  emit('select-location', {
+    id: `mn95-${Date.now()}`,
+    label: `MN95 ${mn95E.value} / ${mn95N.value}`,
     lon,
     lat,
     x: mn95E.value,
@@ -106,13 +117,13 @@ function goToMN95() {
 </script>
 
 <style scoped>
-.sidebar {
-  width: 300px;
-  padding: 20px;
-  background: #f8fafc;
-  height: 100vh;
-  overflow: hidden;
-  border-right: 1px solid #e2e8f0;
+.sidebar-content {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  height: 100%;
+  overflow: visible;
+  border-right: none;
 }
 
 .title {
@@ -204,7 +215,6 @@ function goToMN95() {
   font-size: 0.95rem;
 }
 
-/* Suppression des flèches (spinners) pour les inputs number */
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;

@@ -11,28 +11,17 @@ proj4.defs(
     '+towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs'
 )
 
-function transformer(sourceEpsg, targetEpsg, coordonnees) {
-  return proj4(sourceEpsg, targetEpsg, coordonnees)
-}
-
-export function lonLatToLV95(lon, lat) {
-  const [x, y] = transformer(EPSG_WGS84, EPSG_LV95, [lon, lat])
-  return { x, y }
+function transformCoordinates(sourceEpsg, targetEpsg, coordinates) {
+  return proj4(sourceEpsg, targetEpsg, coordinates)
 }
 
 export function lv95ToLonLat(x, y) {
-  const [lon, lat] = transformer(EPSG_LV95, EPSG_WGS84, [x, y])
+  const [lon, lat] = transformCoordinates(EPSG_LV95, EPSG_WGS84, [x, y])
   return { lon, lat }
 }
 
 export function webMercatorToLV95(x, y) {
-  const [lon, lat] = transformer(EPSG_WEB_MERCATOR, EPSG_WGS84, [x, y])
-  const [lv95x, lv95y] = transformer(EPSG_WGS84, EPSG_LV95, [lon, lat])
+  const [lon, lat] = transformCoordinates(EPSG_WEB_MERCATOR, EPSG_WGS84, [x, y])
+  const [lv95x, lv95y] = transformCoordinates(EPSG_WGS84, EPSG_LV95, [lon, lat])
   return [lv95x, lv95y]
-}
-
-export function lv95ToWebMercator(x, y) {
-  const [lon, lat] = transformer(EPSG_LV95, EPSG_WGS84, [x, y])
-  const [mx, my] = transformer(EPSG_WGS84, EPSG_WEB_MERCATOR, [lon, lat])
-  return [mx, my]
 }

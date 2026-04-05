@@ -1,10 +1,9 @@
 <template>
   <div class="app-layout">
     <aside class="sidebar">
-      <SummitSidebar
-        :selected-summit="selectedSummit"
+      <Sidebar
         :selected-danger-layer="selectedDangerLayer"
-        @select-summit="handleSelectSummit"
+        @select-location="handleSelectLocation"
         @select-danger-layer="handleSelectDangerLayer"
       />
     </aside>
@@ -12,7 +11,7 @@
     <main class="main-panel">
       <section class="left-panel">
         <MapView
-          :selected-summit="selectedSummit"
+          :selected-location="selectedLocation"
           :selected-danger-layer="selectedDangerLayer"
           :clicked-point="clickedPoint"
           @map-click="handleMapClick"
@@ -21,8 +20,8 @@
 
       <section class="right-panel">
         <ThreeDView
+          :selected-location="selectedLocation"
           :clicked-point="clickedPoint"
-          :selected-avalanche="selectedAvalanche"
           :selected-danger-layer="selectedDangerLayer"
         />
       </section>
@@ -31,46 +30,26 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import MapView from './components/MapView.vue'
 import ThreeDView from './components/ThreeDView.vue'
-import SummitSidebar from './components/SummitSidebar.vue'
+import Sidebar from './components/Sidebar.vue'
 
-const summits = ref([])
+const selectedLocation = ref(null)
 const clickedPoint = ref(null)
-const selectedAvalanche = ref(null)
-const selectedSummit = ref(null)
 const selectedDangerLayer = ref('avalanche')
 
-async function loadSummits() {
-  try {
-    const response = await fetch('/summits.json')
-    if (!response.ok) {
-      throw new Error('Erreur lors du chargement de summits.json')
-    }
-    summits.value = await response.json()
-  } catch (error) {
-    console.error(error)
-    summits.value = []
-  }
-}
-
-function handleSelectSummit(summit) {
-  selectedSummit.value = summit
+function handleSelectLocation(location) {
   clickedPoint.value = null
-  selectedAvalanche.value = null
+  selectedLocation.value = location
 }
 
 function handleMapClick(point) {
+  selectedLocation.value = null
   clickedPoint.value = point
-  selectedAvalanche.value = null
 }
 
 function handleSelectDangerLayer(layerId) {
   selectedDangerLayer.value = layerId
 }
-
-onMounted(() => {
-  loadSummits()
-})
 </script>
