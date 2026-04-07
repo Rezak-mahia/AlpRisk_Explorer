@@ -178,11 +178,18 @@ onMounted(async () => {
   mapInstance.addLayer(clickedPointLayer)
   mapInstance.updateSize()
 
-  mapInstance.on('singleclick', (event) => {
-    const [lon, lat] = toLonLat(event.coordinate)
-    const [x, y] = webMercatorToLV95(event.coordinate[0], event.coordinate[1])
+  mapInstance.on('singleclick', async (event) => {
+    try {
+      const [lon, lat] = toLonLat(event.coordinate)
+      const { x, y } = await webMercatorToLV95(
+        event.coordinate[0],
+        event.coordinate[1]
+      )
 
-    emit('map-click', { lon, lat, x, y })
+      emit('map-click', { lon, lat, x, y })
+    } catch (error) {
+      console.error(error)
+    }
   })
 
   mapReady = true

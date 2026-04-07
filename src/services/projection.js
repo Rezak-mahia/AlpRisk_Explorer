@@ -1,27 +1,56 @@
-import proj4 from 'proj4'
+const SWISSTOPO_REFRAME_BASE_URL = 'https://geodesy.geo.admin.ch/reframe'
 
-const EPSG_WGS84 = 'EPSG:4326'
-const EPSG_LV95 = 'EPSG:2056'
-const EPSG_WEB_MERCATOR = 'EPSG:3857'
+async function fetchJson(url, errorMessage) {
+  const response = await fetch(url)
 
-proj4.defs(
-  EPSG_LV95,
-  '+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 ' +
-    '+x_0=2600000 +y_0=1200000 +ellps=bessel ' +
-    '+towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs'
-)
+  if (!response.ok) {
+    throw new Error(errorMessage)
+  }
 
-function transformCoordinates(sourceEpsg, targetEpsg, coordinates) {
-  return proj4(sourceEpsg, targetEpsg, coordinates)
+  return response.json()
 }
 
-export function lv95ToLonLat(x, y) {
-  const [lon, lat] = transformCoordinates(EPSG_LV95, EPSG_WGS84, [x, y])
-  return { lon, lat }
+export async function lv95ToLonLat(x, y) {
+  const url =
+    `${SWISSTOPO_REFRAME_BASE_URL}/lv95towgs84` +
+    `?easting=${encodeURIComponent(x)}` +
+    `&northing=${encodeURIComponent(y)}` +
+    `&format=json`
+
+  const data = await fetchJson(
+    url,
+    'Erreur lors de la conversion LV95 vers WGS84'
+  )
+
+  return {
+    lon: Number(data.easting),
+    lat: Number(data.northing)
+  }
 }
 
-export function webMercatorToLV95(x, y) {
-  const [lon, lat] = transformCoordinates(EPSG_WEB_MERCATOR, EPSG_WGS84, [x, y])
-  const [lv95x, lv95y] = transformCoordinates(EPSG_WGS84, EPSG_LV95, [lon, lat])
-  return [lv95x, lv95y]
+export async function lonLatToLV95(lon, lat) {
+  const url =
+    `${SWISSTOPO_REFRAME_BASE_URL}/wgs84tolv95` +
+    `?easting=${encodeURIComponent(lon)}` +
+    `&northing=${encodeURIComponent(lat)}` +
+    `&format=json`
+
+  const data = await fetchJson(
+    url,
+    'Erreur lors de la conversion WGS84 vers LV95'
+  )
+
+  return {
+    x: Number(data.easting),
+    y: Number(data.northing)
+  }
+}
+
+export async function webMercatorToLV95(x, y) {
+  const lon = (x * 180) / 20037508.34
+  const lat =
+    (180 / Math.PI) *
+    (2 * Math.atan(Math.exp((y / 20037508.34) * Math.PI)) - Math.PI / 2)
+
+  return lonLatToLV95(lon, lat)
 }

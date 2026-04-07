@@ -100,19 +100,23 @@ function selectDangerLayer() {
   emit('select-danger-layer', selectedLayerId.value)
 }
 
-function goToMN95() {
+async function goToMN95() {
   if (mn95E.value == null || mn95N.value == null) return
 
-  const { lon, lat } = lv95ToLonLat(mn95E.value, mn95N.value)
+  try {
+    const { lon, lat } = await lv95ToLonLat(mn95E.value, mn95N.value)
 
-  emit('select-location', {
-    id: `mn95-${Date.now()}`,
-    label: `MN95 ${mn95E.value} / ${mn95N.value}`,
-    lon,
-    lat,
-    x: mn95E.value,
-    y: mn95N.value
-  })
+    emit('select-location', {
+      id: `mn95-${Date.now()}`,
+      label: `MN95 ${mn95E.value} / ${mn95N.value}`,
+      lon,
+      lat,
+      x: mn95E.value,
+      y: mn95N.value
+    })
+  } catch (error) {
+    console.error(error)
+  }
 }
 </script>
 
