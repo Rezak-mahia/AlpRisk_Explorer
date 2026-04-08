@@ -24,7 +24,7 @@ import Point from 'ol/geom/Point.js'
 import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import { Style, Stroke, Circle, Fill } from 'ol/style.js'
-import { buildMap } from '../services/map.js'
+import { buildMap, loadDangerLayer, preloadDangerLayers } from '../services/map.js'
 import { webMercatorToLV95 } from '../services/projection.js'
 
 const props = defineProps({
@@ -51,9 +51,12 @@ const popupData = ref(null)
 
 let mapInstance = null
 let popupOverlay = null
-let avalancheLayer = null
-let glissementLayer = null
-let hydrologieLayer = null
+const dangerLayers = {
+  avalanche: null,
+  glissement: null,
+  hydrologie: null
+}
+let activeDangerLayerId = null
 let clickedPointSource = null
 let clickedPointLayer = null
 let mapReady = false
@@ -84,12 +87,26 @@ function centrerValais() {
   resetPopup()
 }
 
-function updateDangerLayerVisibility(layerId) {
-  if (!avalancheLayer || !glissementLayer || !hydrologieLayer) return
+async function setActiveDangerLayer(layerId) {
+  if (!mapInstance) return
+  if (activeDangerLayerId === layerId) return
 
-  avalancheLayer.setVisible(layerId === 'avalanche')
-  glissementLayer.setVisible(layerId === 'glissement')
-  hydrologieLayer.setVisible(layerId === 'hydrologie')
+  if (activeDangerLayerId && dangerLayers[activeDangerLayerId]) {
+    dangerLayers[activeDangerLayerId].setVisible(false)
+  }
+
+  let layer = dangerLayers[layerId]
+  if (!layer) {
+    layer = await loadDangerLayer(layerId)
+    layer.setVisible(true)
+    layer.setZIndex(20)
+    mapInstance.addLayer(layer)
+    dangerLayers[layerId] = layer
+  } else {
+    layer.setVisible(true)
+  }
+
+  activeDangerLayerId = layerId
 }
 
 function clearRedPoint() {
@@ -151,15 +168,12 @@ function syncMapState() {
 onMounted(async () => {
   await nextTick()
 
-  const built = await buildMap(mapEl.value, popupEl.value)
+  const built = await buildMap(mapEl.value, popupEl.value, props.selectedDangerLayer)
 
   mapInstance = built.map
   popupOverlay = built.popupOverlay
-  avalancheLayer = built.avalancheLayer
-  glissementLayer = built.glissementLayer
-  hydrologieLayer = built.hydrologieLayer
-
-  updateDangerLayerVisibility(props.selectedDangerLayer)
+  dangerLayers[props.selectedDangerLayer] = built.initialDangerLayer
+  activeDangerLayerId = props.selectedDangerLayer
 
   clickedPointSource = new VectorSource()
 
@@ -177,6 +191,10 @@ onMounted(async () => {
   clickedPointLayer.setZIndex(400)
   mapInstance.addLayer(clickedPointLayer)
   mapInstance.updateSize()
+
+  preloadDangerLayers(props.selectedDangerLayer).catch((error) => {
+    console.error('Préchargement des couches en arrière-plan échoué', error)
+  })
 
   mapInstance.on('singleclick', async (event) => {
     try {
@@ -198,8 +216,11 @@ onMounted(async () => {
 
 watch(
   () => props.selectedDangerLayer,
-  (layerId) => {
-    updateDangerLayerVisibility(layerId)
+  async (layerId) => {
+    await setActiveDangerLayer(layerId)
+    preloadDangerLayers(layerId).catch((error) => {
+      console.error('Préchargement des couches en arrière-plan échoué', error)
+    })
   }
 )
 

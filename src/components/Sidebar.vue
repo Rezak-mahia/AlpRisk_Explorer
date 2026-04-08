@@ -142,8 +142,8 @@ async function goToMN95() {
 }
 
 .sidebar-logo {
-  width: 250px;
-  height: 250px;
+  width: 300px;
+  height: 300px;
   object-fit: contain;
   border-radius: 40px;
   background: #fff;

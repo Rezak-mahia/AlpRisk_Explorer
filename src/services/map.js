@@ -163,6 +163,14 @@ function createLayerStyle(layerType) {
   }
 }
 
+const DANGER_LAYER_FETCHERS = {
+  avalanche: fetchAllValaisAvalancheGeoJson,
+  glissement: fetchAllValaisGlissementGeoJson,
+  hydrologie: fetchAllValaisHydrologieGeoJson
+}
+
+const dangerLayerPromises = {}
+
 async function createDangerLayer(fetcher, layerType) {
   const geojson = await fetcher()
 
@@ -184,17 +192,33 @@ async function createDangerLayer(fetcher, layerType) {
   return layer
 }
 
-export async function buildMap(target, popupElement) {
-  const [
-    avalancheLayer,
-    glissementLayer,
-    hydrologieLayer,
-    capabilities
-  ] = await Promise.all([
-    createDangerLayer(fetchAllValaisAvalancheGeoJson, 'avalanche'),
-    createDangerLayer(fetchAllValaisGlissementGeoJson, 'glissement'),
-    createDangerLayer(fetchAllValaisHydrologieGeoJson, 'hydrologie'),
-    getSwisstopoWmtsCapabilities()
+export function loadDangerLayer(layerId) {
+  if (!DANGER_LAYER_FETCHERS[layerId]) {
+    throw new Error(`Unknown danger layer "${layerId}"`)
+  }
+
+  if (!dangerLayerPromises[layerId]) {
+    dangerLayerPromises[layerId] = createDangerLayer(
+      DANGER_LAYER_FETCHERS[layerId],
+      layerId
+    )
+  }
+
+  return dangerLayerPromises[layerId]
+}
+
+export function preloadDangerLayers(activeLayerId) {
+  const otherLayerIds = Object.keys(DANGER_LAYER_FETCHERS).filter(
+    (layerId) => layerId !== activeLayerId
+  )
+
+  return Promise.all(otherLayerIds.map((layerId) => loadDangerLayer(layerId)))
+}
+
+export async function buildMap(target, popupElement, initialLayerId = 'avalanche') {
+  const [capabilities, initialDangerLayer] = await Promise.all([
+    getSwisstopoWmtsCapabilities(),
+    loadDangerLayer(initialLayerId)
   ])
 
   const popupOverlay = new Overlay({
@@ -215,7 +239,7 @@ export async function buildMap(target, popupElement) {
 
   const map = new Map({
     target,
-    layers: [swisstopoLayer, avalancheLayer, glissementLayer, hydrologieLayer],
+    layers: [swisstopoLayer, initialDangerLayer],
     overlays: [popupOverlay],
     view: new View({
       center: fromLonLat([7.45, 46.15]),
@@ -226,8 +250,6 @@ export async function buildMap(target, popupElement) {
   return {
     map,
     popupOverlay,
-    avalancheLayer,
-    glissementLayer,
-    hydrologieLayer
+    initialDangerLayer
   }
 }
