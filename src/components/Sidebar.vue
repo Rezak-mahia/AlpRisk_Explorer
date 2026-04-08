@@ -1,7 +1,9 @@
 <template>
   <aside class="sidebar-content">
-    <h1 class="title">Analyse des dangers naturels en Valais</h1>
-
+    <div class="sidebar-header">
+      <img class="sidebar-logo" :src="logo" alt="Explorateur AlpRisk et risques naturels" />
+    </div>
+    <h1 class="title"><strong>Analyse des dangers naturels en Valais</strong></h1>
     <div class="info-box">
       <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
       <ul>
@@ -63,6 +65,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { lv95ToLonLat } from '../services/projection.js'
+import logo from '../../Explorateur AlpRisk et risques naturels.png'
 
 const props = defineProps({
   selectedDangerLayer: {
@@ -130,9 +133,27 @@ async function goToMN95() {
   border-right: none;
 }
 
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sidebar-logo {
+  width: 250px;
+  height: 250px;
+  object-fit: contain;
+  border-radius: 40px;
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  padding: 12px;
+}
+
 .title {
   font-size: 1.4rem;
-  margin-bottom: 15px;
+  margin-bottom: 0;
   color: #1e293b;
   font-weight: bold;
 }

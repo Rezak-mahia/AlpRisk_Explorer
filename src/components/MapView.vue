@@ -76,8 +76,8 @@ function centrerValais() {
   if (!mapInstance) return
 
   mapInstance.getView().animate({
-    center: fromLonLat([7.45, 46.15]),
-    zoom: 10,
+    center: fromLonLat([7.585, 46.150]),
+    zoom: 8.87,
     duration: 700
   })
 
