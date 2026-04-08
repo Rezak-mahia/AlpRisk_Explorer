@@ -65,7 +65,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { lv95ToLonLat } from '../services/projection.js'
-import logo from '../../Explorateur AlpRisk et risques naturels.png'
+import logo from '../assets/Explorateur AlpRisk et risques naturels.png'
 
 const props = defineProps({
   selectedDangerLayer: {
