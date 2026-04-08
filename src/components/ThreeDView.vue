@@ -333,12 +333,14 @@ onMounted(async () => {
       baseLayer: false,
       timeline: false,
       animation: false,
+      infoBox: false,
+      selectionIndicator: false,
       baseLayerPicker: false,
       geocoder: false,
       homeButton: false,
       sceneModePicker: false,
       navigationHelpButton: false,
-      fullscreenButton: false
+      fullscreenButton: true
     })
 
     addSwisstopoOrthophoto()
