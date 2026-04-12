@@ -67,8 +67,8 @@ Lâ€™application propose une visualisation interactive en 2D et en 3D, accompagnÃ
 ## Installation
 
 ```bash
-git clone https://github.com/<votre-repo>.git
-cd <nom-du-projet>
+git clone https://github.com/Rezak-mahia/AlpRisk_Explorer.git
+cd AlpRisk_Explorer
 npm install
 npm run dev
 ```
