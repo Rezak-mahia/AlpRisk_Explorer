@@ -9,7 +9,7 @@
     <div v-if="selectedHazardInfo" class="three-d-info-box">
       <strong class="popup-title">{{ selectedHazardInfo.title }}</strong>
       <div v-if="selectedHazardInfo.dangerLabel" class="popup-danger">
-        Hazard Level: {{ selectedHazardInfo.dangerLabel }}
+        Risque : {{ selectedHazardInfo.dangerLabel }}
       </div>
     </div>
   </div>
@@ -160,22 +160,22 @@ function translateDangerLevel(dangerValue, hazardType = null) {
   const numValue = Number(dangerValue)
 
   if (hazardType === 'hydrologie') {
-    if (n === 42) return 'élevé dynamique'
-    if (n === 41) return 'élevé statique'
-    if (n === 4) return 'élevé'
-    if (n === 3) return 'moyen'
-    if (n === 2) return 'faible'
-    if (n === 1) return 'résiduel'
-    if (n === 0) return 'non exposé'
+    if (numValue === 42) return 'élevé dynamique'
+    if (numValue === 41) return 'élevé statique'
+    if (numValue === 4) return 'élevé'
+    if (numValue === 3) return 'moyen'
+    if (numValue === 2) return 'faible'
+    if (numValue === 1) return 'résiduel'
+    if (numValue === 0) return 'non exposé'
     return `${dangerValue ?? ''}`
   }
 
-  if (n === 4) return 'élevé'
-  if (n === 3) return 'moyen'
-  if (n === 2) return 'faible'
-  if (n === 1) return 'résiduel'
-  if (n === 5) return 'indicatif'
-  if (n === 0) return 'non exposé'
+  if (numValue === 4) return 'élevé'
+  if (numValue === 3) return 'moyen'
+  if (numValue === 2) return 'faible'
+  if (numValue === 1) return 'résiduel'
+  if (numValue === 5) return 'indicatif'
+  if (numValue === 0) return 'non exposé'
   return `${dangerValue ?? ''}`
 }
 
