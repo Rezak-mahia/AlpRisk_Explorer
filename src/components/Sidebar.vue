@@ -1,8 +1,18 @@
 <template>
-  <aside class="sidebar-content">
-    <div class="sidebar-header">
-      <img class="sidebar-logo" :src="logo" alt="Explorateur AlpRisk et risques naturels" />
-    </div>
+  <div class="sidebar-wrapper" :class="{ collapsed }">
+    <button
+      class="sidebar-toggle"
+      type="button"
+      @click="$emit('toggle-sidebar')"
+      :aria-label="collapsed ? 'Ouvrir la sidebar' : 'Fermer la sidebar'"
+    >
+      {{ collapsed ? '→' : '«' }}
+    </button>
+
+    <div class="sidebar-content">
+      <div class="sidebar-header">
+        <img class="sidebar-logo" :src="logo" alt="Explorateur AlpRisk et risques naturels" />
+      </div>
     <h1 class="title"><strong>Analyse des dangers naturels en Valais</strong></h1>
     <div class="info-box">
       <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
@@ -59,7 +69,8 @@
     </div>
 
     <hr class="divider" />
-  </aside>
+  </div>
+</div>
 </template>
 
 <script setup>
@@ -68,13 +79,17 @@ import { lv95ToLonLat } from '../services/projection.js'
 import logo from '../assets/Explorateur AlpRisk et risques naturels.png'
 
 const props = defineProps({
+  collapsed: {
+    type: Boolean,
+    default: false
+  },
   selectedDangerLayer: {
     type: String,
     default: 'avalanche'
   }
 })
 
-const emit = defineEmits(['select-location', 'select-danger-layer'])
+const emit = defineEmits(['toggle-sidebar', 'select-location', 'select-danger-layer'])
 
 const dangerLayers = [
   { id: 'avalanche', label: 'Avalanche' },
@@ -124,6 +139,36 @@ async function goToMN95() {
 </script>
 
 <style scoped>
+.sidebar-wrapper {
+  position: relative;
+  height: 100%;
+}
+
+.sidebar-toggle {
+  position: fixed;
+  top: 50%;
+  right: auto;
+  left: 320px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: white;
+  color: #334155;
+  cursor: pointer;
+  transition: left 0.3s ease, background 0.2s ease;
+  transform: translateY(-50%);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
+  z-index: 1000;
+}
+
+.sidebar-toggle:hover {
+  background: #f8fafc;
+}
+
 .sidebar-content {
   width: 100%;
   padding: 0;
@@ -131,6 +176,14 @@ async function goToMN95() {
   height: 100%;
   overflow: visible;
   border-right: none;
+}
+
+.sidebar-wrapper.collapsed .sidebar-content {
+  display: none;
+}
+
+.sidebar-wrapper.collapsed .sidebar-toggle {
+  left: 40px;
 }
 
 .sidebar-header {

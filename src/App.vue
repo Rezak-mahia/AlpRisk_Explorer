@@ -1,8 +1,10 @@
 <template>
-  <div class="app-layout">
-    <aside class="sidebar">
+  <div class="app-layout" :class="{ 'sidebar-collapsed': !sidebarOpen }">
+    <aside class="sidebar" :class="{ collapsed: !sidebarOpen }">
       <Sidebar
+        :collapsed="!sidebarOpen"
         :selected-danger-layer="selectedDangerLayer"
+        @toggle-sidebar="toggleSidebar"
         @select-location="handleSelectLocation"
         @select-danger-layer="handleSelectDangerLayer"
       />
@@ -38,6 +40,7 @@ import Sidebar from './components/Sidebar.vue'
 const selectedLocation = ref(null)
 const clickedPoint = ref(null)
 const selectedDangerLayer = ref('avalanche')
+const sidebarOpen = ref(true)
 
 function handleSelectLocation(location) {
   clickedPoint.value = null
@@ -51,5 +54,9 @@ function handleMapClick(point) {
 
 function handleSelectDangerLayer(layerId) {
   selectedDangerLayer.value = layerId
+}
+
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
 }
 </script>
