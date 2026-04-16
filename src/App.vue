@@ -1,12 +1,12 @@
 <template>
-  <div class="app-layout" :class="{ 'sidebar-collapsed': !sidebarOpen }">
-    <aside class="sidebar" :class="{ collapsed: !sidebarOpen }">
+  <div class="app-layout" :class="{ 'sidebar-collapsed': !isSidebarOpen }">
+    <aside class="sidebar" :class="{ collapsed: !isSidebarOpen }">
       <Sidebar
-        :collapsed="!sidebarOpen"
-        :selected-danger-layer="selectedDangerLayer"
-        @toggle-sidebar="toggleSidebar"
-        @select-location="handleSelectLocation"
-        @select-danger-layer="handleSelectDangerLayer"
+        :collapsed="!isSidebarOpen"
+        :selected-danger-layer="selectedHazardType"
+        @toggle-sidebar="toggleSidebarVisibility"
+        @select-location="selectLocationFromSidebar"
+        @select-danger-layer="selectHazardTypeFromSidebar"
       />
     </aside>
 
@@ -14,17 +14,17 @@
       <section class="left-panel">
         <MapView
           :selected-location="selectedLocation"
-          :selected-danger-layer="selectedDangerLayer"
-          :clicked-point="clickedPoint"
-          @map-click="handleMapClick"
+          :selected-danger-layer="selectedHazardType"
+          :clicked-point="clickedMapPoint"
+          @map-click="processMapClick"
         />
       </section>
 
       <section class="right-panel">
         <ThreeDView
           :selected-location="selectedLocation"
-          :clicked-point="clickedPoint"
-          :selected-danger-layer="selectedDangerLayer"
+          :clicked-point="clickedMapPoint"
+          :selected-danger-layer="selectedHazardType"
         />
       </section>
     </main>
@@ -38,25 +38,25 @@ import ThreeDView from './components/ThreeDView.vue'
 import Sidebar from './components/Sidebar.vue'
 
 const selectedLocation = ref(null)
-const clickedPoint = ref(null)
-const selectedDangerLayer = ref('avalanche')
-const sidebarOpen = ref(true)
+const clickedMapPoint = ref(null)
+const selectedHazardType = ref('avalanche')
+const isSidebarOpen = ref(true)
 
-function handleSelectLocation(location) {
-  clickedPoint.value = null
+function selectLocationFromSidebar(location) {
+  clickedMapPoint.value = null
   selectedLocation.value = location
 }
 
-function handleMapClick(point) {
+function processMapClick(point) {
   selectedLocation.value = null
-  clickedPoint.value = point
+  clickedMapPoint.value = point
 }
 
-function handleSelectDangerLayer(layerId) {
-  selectedDangerLayer.value = layerId
+function selectHazardTypeFromSidebar(hazardType) {
+  selectedHazardType.value = hazardType
 }
 
-function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value
+function toggleSidebarVisibility() {
+  isSidebarOpen.value = !isSidebarOpen.value
 }
 </script>

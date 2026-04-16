@@ -1,6 +1,6 @@
 <template>
   <div class="map-container">
-    <h2 class="panel-title">Carte 2D des dangers naturels</h2>
+    <h2 class="panel-title">Carte des dangers naturels</h2>
 
     <div class="map-toolbar">
       <button @click="centrerValais">Centrer sur le Valais</button>
@@ -8,10 +8,10 @@
 
     <div ref="mapEl" class="map"></div>
 
-    <div ref="popupEl" class="map-popup" v-show="popupVisible">
-      <strong>Point sélectionné</strong>
-      <div>E : {{ Math.round(popupData?.x || 0) }}</div>
-      <div>N : {{ Math.round(popupData?.y || 0) }}</div>
+    <div ref="popupEl" class="map-popup" v-show="isPopupVisible">
+      <strong>Point sélectionné :</strong>
+      <div>E: {{ Math.round(popupCoordinates?.x || 0) }}</div>
+      <div>N: {{ Math.round(popupCoordinates?.y || 0) }}</div>
     </div>
   </div>
 </template>
@@ -24,8 +24,8 @@ import Point from 'ol/geom/Point.js'
 import VectorSource from 'ol/source/Vector.js'
 import VectorLayer from 'ol/layer/Vector.js'
 import { Style, Stroke, Circle, Fill } from 'ol/style.js'
-import { buildMap, loadDangerLayer, preloadDangerLayers } from '../services/map.js'
-import { webMercatorToLV95 } from '../services/projection.js'
+import { initializeMap, loadHazardLayer, preloadHazardLayers } from '../services/map.js'
+import { convertWebMercatorToLV95 } from '../services/projection.js'
 
 const props = defineProps({
   selectedLocation: {
@@ -46,36 +46,44 @@ const emit = defineEmits(['map-click'])
 
 const mapEl = ref(null)
 const popupEl = ref(null)
-const popupVisible = ref(false)
-const popupData = ref(null)
+const isPopupVisible = ref(false)
+const popupCoordinates = ref(null)
 
 let mapInstance = null
 let popupOverlay = null
-const dangerLayers = {
+const hazardLayers = {
   avalanche: null,
   glissement: null,
   hydrologie: null
 }
-let activeDangerLayerId = null
-let clickedPointSource = null
-let clickedPointLayer = null
-let mapReady = false
+let activeHazardType = null
+let selectionMarkerSource = null
+let selectionMarkerLayer = null
+let isMapInitialized = false
 
-function resetPopup() {
-  popupVisible.value = false
-  popupData.value = null
+const SELECTION_MARKER_STYLE = new Style({
+  image: new Circle({
+    radius: 7,
+    fill: new Fill({ color: '#dc2626' }),
+    stroke: new Stroke({ color: '#ffffff', width: 2 })
+  })
+})
+
+function hidePopup() {
+  isPopupVisible.value = false
+  popupCoordinates.value = null
   popupOverlay?.setPosition(undefined)
 }
 
-function showPointPopup(point) {
+function displayPopupAtPoint(point) {
   if (!popupOverlay || !point) return
 
-  popupData.value = point
-  popupVisible.value = true
+  popupCoordinates.value = point
+  isPopupVisible.value = true
   popupOverlay.setPosition(fromLonLat([point.lon, point.lat]))
 }
 
-function centrerValais() {
+function centerMapToValais() {
   if (!mapInstance) return
 
   mapInstance.getView().animate({
@@ -84,40 +92,43 @@ function centrerValais() {
     duration: 700
   })
 
-  resetPopup()
+  hidePopup()
 }
 
-async function setActiveDangerLayer(layerId) {
-  if (!mapInstance) return
-  if (activeDangerLayerId === layerId) return
+function centrerValais() {
+  centerMapToValais()
+}
 
-  if (activeDangerLayerId && dangerLayers[activeDangerLayerId]) {
-    dangerLayers[activeDangerLayerId].setVisible(false)
+async function activateHazardLayer(hazardType) {
+  if (!mapInstance || activeHazardType === hazardType) return
+
+  if (activeHazardType && hazardLayers[activeHazardType]) {
+    hazardLayers[activeHazardType].setVisible(false)
   }
 
-  let layer = dangerLayers[layerId]
+  let layer = hazardLayers[hazardType]
   if (!layer) {
-    layer = await loadDangerLayer(layerId)
+    layer = await loadHazardLayer(hazardType)
     layer.setVisible(true)
     layer.setZIndex(20)
     mapInstance.addLayer(layer)
-    dangerLayers[layerId] = layer
+    hazardLayers[hazardType] = layer
   } else {
     layer.setVisible(true)
   }
 
-  activeDangerLayerId = layerId
+  activeHazardType = hazardType
 }
 
-function clearRedPoint() {
-  clickedPointSource?.clear()
+function clearSelectionMarker() {
+  selectionMarkerSource?.clear()
 }
 
-function drawRedPointFromLonLat(lon, lat) {
-  if (!clickedPointSource) return
+function drawMarkerAtCoordinates(lon, lat) {
+  if (!selectionMarkerSource) return
 
-  clickedPointSource.clear()
-  clickedPointSource.addFeature(
+  selectionMarkerSource.clear()
+  selectionMarkerSource.addFeature(
     new Feature({
       geometry: new Point(fromLonLat([lon, lat]))
     })
@@ -126,7 +137,7 @@ function drawRedPointFromLonLat(lon, lat) {
   mapInstance?.render()
 }
 
-function showSelectedLocationOnMap(location) {
+function displaySelectedLocation(location) {
   if (!mapInstance || !location) return
 
   const center = fromLonLat([location.lon, location.lat])
@@ -137,89 +148,86 @@ function showSelectedLocationOnMap(location) {
     duration: 700
   })
 
-  drawRedPointFromLonLat(location.lon, location.lat)
-  resetPopup()
+  drawMarkerAtCoordinates(location.lon, location.lat)
+  hidePopup()
 }
 
-function showClickedPointOnMap(point) {
+function displayClickedPoint(point) {
   if (!mapInstance || !point) return
 
-  drawRedPointFromLonLat(point.lon, point.lat)
-  showPointPopup(point)
+  drawMarkerAtCoordinates(point.lon, point.lat)
+  displayPopupAtPoint(point)
 }
 
-function syncMapState() {
-  if (!mapReady) return
+function synchronizeMapState() {
+  if (!isMapInitialized) return
 
   if (props.clickedPoint) {
-    showClickedPointOnMap(props.clickedPoint)
+    displayClickedPoint(props.clickedPoint)
     return
   }
 
   if (props.selectedLocation) {
-    showSelectedLocationOnMap(props.selectedLocation)
+    displaySelectedLocation(props.selectedLocation)
     return
   }
 
-  clearRedPoint()
-  resetPopup()
+  clearSelectionMarker()
+  hidePopup()
 }
 
 onMounted(async () => {
   await nextTick()
 
-  const built = await buildMap(mapEl.value, popupEl.value, props.selectedDangerLayer)
+  const { map, popupOverlay: overlay, initialHazardLayer } = await initializeMap(
+    mapEl.value,
+    popupEl.value,
+    props.selectedDangerLayer
+  )
 
-  mapInstance = built.map
-  popupOverlay = built.popupOverlay
-  dangerLayers[props.selectedDangerLayer] = built.initialDangerLayer
-  activeDangerLayerId = props.selectedDangerLayer
+  mapInstance = map
+  popupOverlay = overlay
+  hazardLayers[props.selectedDangerLayer] = initialHazardLayer
+  activeHazardType = props.selectedDangerLayer
 
-  clickedPointSource = new VectorSource()
-
-  clickedPointLayer = new VectorLayer({
-    source: clickedPointSource,
-    style: new Style({
-      image: new Circle({
-        radius: 7,
-        fill: new Fill({ color: '#dc2626' }),
-        stroke: new Stroke({ color: '#ffffff', width: 2 })
-      })
-    })
+  selectionMarkerSource = new VectorSource()
+  selectionMarkerLayer = new VectorLayer({
+    source: selectionMarkerSource,
+    style: SELECTION_MARKER_STYLE
   })
 
-  clickedPointLayer.setZIndex(400)
-  mapInstance.addLayer(clickedPointLayer)
+  selectionMarkerLayer.setZIndex(400)
+  mapInstance.addLayer(selectionMarkerLayer)
   mapInstance.updateSize()
 
-  preloadDangerLayers(props.selectedDangerLayer).catch((error) => {
-    console.error('Préchargement des couches en arrière-plan échoué', error)
+  preloadHazardLayers(props.selectedDangerLayer).catch((error) => {
+    console.error('Error preloading hazard layers in background:', error)
   })
 
   mapInstance.on('singleclick', async (event) => {
     try {
       const [lon, lat] = toLonLat(event.coordinate)
-      const { x, y } = await webMercatorToLV95(
+      const { x, y } = await convertWebMercatorToLV95(
         event.coordinate[0],
         event.coordinate[1]
       )
 
       emit('map-click', { lon, lat, x, y })
     } catch (error) {
-      console.error(error)
+      console.error('Error processing map click:', error)
     }
   })
 
-  mapReady = true
-  syncMapState()
+  isMapInitialized = true
+  synchronizeMapState()
 })
 
 watch(
   () => props.selectedDangerLayer,
-  async (layerId) => {
-    await setActiveDangerLayer(layerId)
-    preloadDangerLayers(layerId).catch((error) => {
-      console.error('Préchargement des couches en arrière-plan échoué', error)
+  async (hazardType) => {
+    await activateHazardLayer(hazardType)
+    preloadHazardLayers(hazardType).catch((error) => {
+      console.error('Error preloading hazard layers in background:', error)
     })
   }
 )
@@ -228,7 +236,7 @@ watch(
   [() => props.selectedLocation, () => props.clickedPoint],
   async () => {
     await nextTick()
-    syncMapState()
+    synchronizeMapState()
   },
   { deep: true }
 )

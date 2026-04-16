@@ -41,6 +41,7 @@ select {
 .sidebar {
   background: white;
   border-right: 1px solid #d1d5db;
+  border-radius: 0 10px 10px 0;
   padding: 1rem;
   overflow-y: auto;
   min-height: 0;

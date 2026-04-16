@@ -10,15 +10,16 @@ import { fromLonLat } from 'ol/proj.js'
 import WMTS, { optionsFromCapabilities } from 'ol/source/WMTS.js'
 
 import {
-  getSwisstopoWmtsCapabilities,
-  fetchAllValaisAvalancheGeoJson,
-  fetchAllValaisGlissementGeoJson,
-  fetchAllValaisHydrologieGeoJson
-} from '../services/geoAdmin.js'
+  fetchSwisstopoWmtsCapabilities,
+  fetchValaisAvalancheGeoJson,
+  fetchValaisGlissementGeoJson,
+  fetchValaisHydrologieGeoJson
+} from './geoAdmin.js'
 
-const DANGER_STYLES = {
+// Hazard styling configuration by danger type and level
+const HAZARD_LAYER_STYLES = {
   avalanche: {
-    dangerKey: 'DEGRE_DANGER',
+    dangerPropertyKey: 'DEGRE_DANGER',
     strokeWidth: 1,
     default: {
       fill: 'rgba(160, 160, 160, 0.35)',
@@ -58,9 +59,8 @@ const DANGER_STYLES = {
       }
     }
   },
-
   glissement: {
-    dangerKey: 'DANGER',
+    dangerPropertyKey: 'DANGER',
     strokeWidth: 1.5,
     default: {
       fill: 'rgba(160, 160, 160, 0.35)',
@@ -95,9 +95,8 @@ const DANGER_STYLES = {
       }
     }
   },
-
   hydrologie: {
-    dangerKey: 'DEGRE_DANGER_CODE',
+    dangerPropertyKey: 'DEGRE_DANGER_CODE',
     strokeWidth: 2,
     default: {
       fill: 'rgba(173, 216, 230, 0.70)',
@@ -139,43 +138,42 @@ const DANGER_STYLES = {
   }
 }
 
-function createPolygonStyle(styleInfo, strokeWidth) {
+const HAZARD_LAYER_FETCHERS = {
+  avalanche: fetchValaisAvalancheGeoJson,
+  glissement: fetchValaisGlissementGeoJson,
+  hydrologie: fetchValaisHydrologieGeoJson
+}
+
+const hazardLayerCache = {}
+
+function buildPolygonStyle(styleConfig, strokeWidth) {
   return new Style({
     stroke: new Stroke({
-      color: styleInfo.stroke,
+      color: styleConfig.stroke,
       width: strokeWidth,
-      lineDash: styleInfo.lineDash
+      lineDash: styleConfig.lineDash
     }),
     fill: new Fill({
-      color: styleInfo.fill
+      color: styleConfig.fill
     })
   })
 }
 
-function createLayerStyle(layerType) {
-  const config = DANGER_STYLES[layerType]
+function createLayerStyleFunction(hazardType) {
+  const config = HAZARD_LAYER_STYLES[hazardType]
 
   return (feature) => {
-    const dangerValue = Number(feature.getProperties()[config.dangerKey] ?? 0)
-    const styleInfo = config.values[dangerValue] || config.default
-
-    return createPolygonStyle(styleInfo, config.strokeWidth)
+    const dangerValue = Number(feature.getProperties()[config.dangerPropertyKey] ?? 0)
+    const styleConfig = config.values[dangerValue] || config.default
+    return buildPolygonStyle(styleConfig, config.strokeWidth)
   }
 }
 
-const DANGER_LAYER_FETCHERS = {
-  avalanche: fetchAllValaisAvalancheGeoJson,
-  glissement: fetchAllValaisGlissementGeoJson,
-  hydrologie: fetchAllValaisHydrologieGeoJson
-}
-
-const dangerLayerPromises = {}
-
-async function createDangerLayer(fetcher, layerType) {
-  const geojson = await fetcher()
+async function createHazardLayer(fetcher, hazardType) {
+  const geoJson = await fetcher()
 
   const source = new VectorSource({
-    features: new GeoJSON().readFeatures(geojson, {
+    features: new GeoJSON().readFeatures(geoJson, {
       dataProjection: 'EPSG:4326',
       featureProjection: 'EPSG:3857'
     })
@@ -183,42 +181,42 @@ async function createDangerLayer(fetcher, layerType) {
 
   const layer = new VectorLayer({
     source,
-    style: createLayerStyle(layerType)
+    style: createLayerStyleFunction(hazardType)
   })
 
-  layer.set('layerType', layerType)
+  layer.set('hazardType', hazardType)
   layer.setZIndex(20)
 
   return layer
 }
 
-export function loadDangerLayer(layerId) {
-  if (!DANGER_LAYER_FETCHERS[layerId]) {
-    throw new Error(`Unknown danger layer "${layerId}"`)
+export function loadHazardLayer(hazardType) {
+  if (!HAZARD_LAYER_FETCHERS[hazardType]) {
+    throw new Error(`Unknown hazard layer: "${hazardType}"`)
   }
 
-  if (!dangerLayerPromises[layerId]) {
-    dangerLayerPromises[layerId] = createDangerLayer(
-      DANGER_LAYER_FETCHERS[layerId],
-      layerId
+  if (!hazardLayerCache[hazardType]) {
+    hazardLayerCache[hazardType] = createHazardLayer(
+      HAZARD_LAYER_FETCHERS[hazardType],
+      hazardType
     )
   }
 
-  return dangerLayerPromises[layerId]
+  return hazardLayerCache[hazardType]
 }
 
-export function preloadDangerLayers(activeLayerId) {
-  const otherLayerIds = Object.keys(DANGER_LAYER_FETCHERS).filter(
-    (layerId) => layerId !== activeLayerId
+export function preloadHazardLayers(activeHazardType) {
+  const otherHazardTypes = Object.keys(HAZARD_LAYER_FETCHERS).filter(
+    (type) => type !== activeHazardType
   )
 
-  return Promise.all(otherLayerIds.map((layerId) => loadDangerLayer(layerId)))
+  return Promise.all(otherHazardTypes.map((type) => loadHazardLayer(type)))
 }
 
-export async function buildMap(target, popupElement, initialLayerId = 'avalanche') {
-  const [capabilities, initialDangerLayer] = await Promise.all([
-    getSwisstopoWmtsCapabilities(),
-    loadDangerLayer(initialLayerId)
+export async function initializeMap(mapElement, popupElement, initialHazardType = 'avalanche') {
+  const [capabilities, initialHazardLayer] = await Promise.all([
+    fetchSwisstopoWmtsCapabilities(),
+    loadHazardLayer(initialHazardType)
   ])
 
   const popupOverlay = new Overlay({
@@ -228,7 +226,7 @@ export async function buildMap(target, popupElement, initialLayerId = 'avalanche
     stopEvent: false
   })
 
-  const swisstopoLayer = new TileLayer({
+  const swisstopoBaseLayer = new TileLayer({
     source: new WMTS(
       optionsFromCapabilities(capabilities, {
         layer: 'ch.swisstopo.pixelkarte-farbe',
@@ -238,8 +236,8 @@ export async function buildMap(target, popupElement, initialLayerId = 'avalanche
   })
 
   const map = new Map({
-    target,
-    layers: [swisstopoLayer, initialDangerLayer],
+    target: mapElement,
+    layers: [swisstopoBaseLayer, initialHazardLayer],
     overlays: [popupOverlay],
     view: new View({
       center: fromLonLat([7.45, 46.15]),
@@ -250,6 +248,6 @@ export async function buildMap(target, popupElement, initialLayerId = 'avalanche
   return {
     map,
     popupOverlay,
-    initialDangerLayer
+    initialHazardLayer
   }
 }

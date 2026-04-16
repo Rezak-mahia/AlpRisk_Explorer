@@ -4,12 +4,12 @@
 
     <div ref="viewerEl" class="three-d-view"></div>
 
-    <p v-if="status" class="status">{{ status }}</p>
+    <p v-if="initializationStatus" class="status">{{ initializationStatus }}</p>
 
-    <div v-if="pickedInfo" class="three-d-info-box">
-      <strong class="popup-title">{{ pickedInfo.title }}</strong>
-      <div v-if="pickedInfo.dangerLabel" class="popup-danger">
-        Danger : {{ pickedInfo.dangerLabel }}
+    <div v-if="selectedHazardInfo" class="three-d-info-box">
+      <strong class="popup-title">{{ selectedHazardInfo.title }}</strong>
+      <div v-if="selectedHazardInfo.dangerLabel" class="popup-danger">
+        Hazard Level: {{ selectedHazardInfo.dangerLabel }}
       </div>
     </div>
   </div>
@@ -42,9 +42,9 @@ import {
   SWISSTOPO_BUILDINGS_URL,
   SWISSTOPO_SWISSIMAGE_WMTS_URL,
   CESIUM_ION_TOKEN,
-  fetchAllValaisAvalancheGeoJson,
-  fetchAllValaisGlissementGeoJson,
-  fetchAllValaisHydrologieGeoJson
+  fetchValaisAvalancheGeoJson,
+  fetchValaisGlissementGeoJson,
+  fetchValaisHydrologieGeoJson
 } from '../services/geoAdmin.js'
 
 const props = defineProps({
@@ -63,20 +63,21 @@ const props = defineProps({
 })
 
 const viewerEl = ref(null)
-const status = ref('Initialisation de Cesium...')
-const pickedInfo = ref(null)
+const initializationStatus = ref('Initializing Cesium...')
+const selectedHazardInfo = ref(null)
 
 let viewer = null
-let buildingsTileset = null
-let activePointEntity = null
-let avalancheDataSource = null
-let glissementDataSource = null
-let hydrologieDataSource = null
-let clickHandler = null
+let buildings3DTileset = null
+let activeMarkerEntity = null
+let avalancheHazardDataSource = null
+let landslideHazardDataSource = null
+let hydrologicalHazardDataSource = null
+let sceneClickHandler = null
 
-const SWITZERLAND_RECTANGLE = Rectangle.fromDegrees(5.95, 45.80, 10.55, 47.85)
+const SWITZERLAND_BOUNDS = Rectangle.fromDegrees(5.95, 45.80, 10.55, 47.85)
+const VALAIS_BOUNDS = Rectangle.fromDegrees(7.0, 45.75, 8.4, 46.55)
 
-const MAP_3D_STYLES = {
+const HAZARD_3D_STYLES = {
   avalanche: {
     0: { fill: [255, 255, 255, 70], outline: [104, 104, 104, 150] },
     1: { fill: [255, 248, 103, 100], outline: [255, 248, 103, 255] },
@@ -103,28 +104,28 @@ const MAP_3D_STYLES = {
   }
 }
 
-const LAYER_CONFIG = {
+const HAZARD_LAYER_CONFIG = {
   avalanche: {
-    title: "Zone d'avalanche",
-    dangerKey: 'DEGRE_DANGER',
-    fetcher: fetchAllValaisAvalancheGeoJson
+    title: 'Danger : Avalanche',
+    dangerPropertyKey: 'DEGRE_DANGER',
+    fetcher: fetchValaisAvalancheGeoJson
   },
   glissement: {
-    title: 'Zone de glissement',
-    dangerKey: 'DANGER',
-    fetcher: fetchAllValaisGlissementGeoJson
+    title: 'Danger : Glissement de terrain',
+    dangerPropertyKey: 'DANGER',
+    fetcher: fetchValaisGlissementGeoJson
   },
   hydrologie: {
-    title: "Zone d'hydrologie",
-    dangerKey: 'DEGRE_DANGER_CODE',
-    fetcher: fetchAllValaisHydrologieGeoJson
+    title: 'Danger : Hydrologie (Rhône)',
+    dangerPropertyKey: 'DEGRE_DANGER_CODE',
+    fetcher: fetchValaisHydrologieGeoJson
   }
 }
 
-function addSwisstopoOrthophoto() {
+function displaySwisstopoOrthophoto() {
   if (!viewer) return
 
-  const swissimageProvider = new WebMapTileServiceImageryProvider({
+  const orthophotoProvider = new WebMapTileServiceImageryProvider({
     url: SWISSTOPO_SWISSIMAGE_WMTS_URL,
     layer: 'ch.swisstopo.swissimage',
     style: 'default',
@@ -135,31 +136,30 @@ function addSwisstopoOrthophoto() {
     credit: '© swisstopo'
   })
 
-  viewer.imageryLayers.addImageryProvider(swissimageProvider)
+  viewer.imageryLayers.addImageryProvider(orthophotoProvider)
 }
 
-function setInitialViewOnSwitzerland() {
+function centerViewOnSwitzerland() {
   if (!viewer) return
 
-  Camera.DEFAULT_VIEW_RECTANGLE = SWITZERLAND_RECTANGLE
-
+  Camera.DEFAULT_VIEW_RECTANGLE = SWITZERLAND_BOUNDS
   viewer.camera.flyTo({
-    destination: SWITZERLAND_RECTANGLE,
+    destination: VALAIS_BOUNDS,
     duration: 0
   })
 }
 
-function getPropertyValue(entity, key) {
-  const value = entity?.properties?.[key]
-  return value && typeof value.getValue === 'function'
-    ? value.getValue()
-    : value ?? null
+function extractEntityProperty(entity, propertyKey) {
+  const propertyValue = entity?.properties?.[propertyKey]
+  return propertyValue && typeof propertyValue.getValue === 'function'
+    ? propertyValue.getValue()
+    : propertyValue ?? null
 }
 
-function dangerLabelFromValue(value, layerId = null) {
-  const n = Number(value)
+function translateDangerLevel(dangerValue, hazardType = null) {
+  const numValue = Number(dangerValue)
 
-  if (layerId === 'hydrologie') {
+  if (hazardType === 'hydrologie') {
     if (n === 42) return 'élevé dynamique'
     if (n === 41) return 'élevé statique'
     if (n === 4) return 'élevé'
@@ -167,7 +167,7 @@ function dangerLabelFromValue(value, layerId = null) {
     if (n === 2) return 'faible'
     if (n === 1) return 'résiduel'
     if (n === 0) return 'non exposé'
-    return `${value ?? ''}`
+    return `${dangerValue ?? ''}`
   }
 
   if (n === 4) return 'élevé'
@@ -176,28 +176,26 @@ function dangerLabelFromValue(value, layerId = null) {
   if (n === 1) return 'résiduel'
   if (n === 5) return 'indicatif'
   if (n === 0) return 'non exposé'
-  return `${value ?? ''}`
+  return `${dangerValue ?? ''}`
 }
 
-function buildPickedInfo(entity, layerId) {
-  const config = LAYER_CONFIG[layerId]
-  const dangerValue = getPropertyValue(entity, config.dangerKey)
+function buildHazardInfo(entity, hazardType) {
+  const config = HAZARD_LAYER_CONFIG[hazardType]
+  const dangerValue = extractEntityProperty(entity, config.dangerPropertyKey)
 
-  if (dangerValue == null) {
-    return null
-  }
+  if (dangerValue == null) return null
 
   return {
     title: config.title,
-    dangerLabel: dangerLabelFromValue(dangerValue, layerId)
+    dangerLabel: translateDangerLevel(dangerValue, hazardType)
   }
 }
 
-function getCesiumStyle(layerId, dangerValue) {
-  const layerStyles = MAP_3D_STYLES[layerId]
+function resolveHazardStyle(hazardType, dangerValue) {
+  const hazardStyles = HAZARD_3D_STYLES[hazardType]
   const style =
-    layerStyles?.[Number(dangerValue)] ||
-    layerStyles?.default || {
+    hazardStyles?.[Number(dangerValue)] ||
+    hazardStyles?.default || {
       fill: [160, 160, 160, 90],
       outline: [104, 104, 104, 255]
     }
@@ -208,14 +206,14 @@ function getCesiumStyle(layerId, dangerValue) {
   }
 }
 
-function styleDataSourcePolygons(dataSource, layerId) {
-  const dangerKey = LAYER_CONFIG[layerId].dangerKey
+function applyHazardStyling(dataSource, hazardType) {
+  const dangerPropertyKey = HAZARD_LAYER_CONFIG[hazardType].dangerPropertyKey
 
   for (const entity of dataSource.entities.values) {
     if (!entity.polygon) continue
 
-    const dangerValue = getPropertyValue(entity, dangerKey)
-    const style = getCesiumStyle(layerId, dangerValue)
+    const dangerValue = extractEntityProperty(entity, dangerPropertyKey)
+    const style = resolveHazardStyle(hazardType, dangerValue)
 
     entity.polygon.material = style.material
     entity.polygon.outline = true
@@ -224,35 +222,35 @@ function styleDataSourcePolygons(dataSource, layerId) {
   }
 }
 
-async function loadDangerDataSource(layerId) {
-  const config = LAYER_CONFIG[layerId]
-  const geojson = await config.fetcher()
+async function loadHazardDataSource(hazardType) {
+  const config = HAZARD_LAYER_CONFIG[hazardType]
+  const geoJson = await config.fetcher()
 
-  const dataSource = await GeoJsonDataSource.load(geojson, {
+  const dataSource = await GeoJsonDataSource.load(geoJson, {
     clampToGround: true
   })
 
-  styleDataSourcePolygons(dataSource, layerId)
+  applyHazardStyling(dataSource, hazardType)
   viewer.dataSources.add(dataSource)
 
   return dataSource
 }
 
-function updateDangerLayer3D(layerId) {
-  if (avalancheDataSource) avalancheDataSource.show = layerId === 'avalanche'
-  if (glissementDataSource) glissementDataSource.show = layerId === 'glissement'
-  if (hydrologieDataSource) hydrologieDataSource.show = layerId === 'hydrologie'
+function synchronizeHazardLayerVisibility(activeHazardType) {
+  if (avalancheHazardDataSource) avalancheHazardDataSource.show = activeHazardType === 'avalanche'
+  if (landslideHazardDataSource) landslideHazardDataSource.show = activeHazardType === 'glissement'
+  if (hydrologicalHazardDataSource) hydrologicalHazardDataSource.show = activeHazardType === 'hydrologie'
 }
 
-function flyToPoint(lon, lat, label = 'Point sélectionné') {
+function animateCameraToMarker(lon, lat, markerLabel = 'Selected Point') {
   if (!viewer) return
 
-  if (activePointEntity) {
-    viewer.entities.remove(activePointEntity)
+  if (activeMarkerEntity) {
+    viewer.entities.remove(activeMarkerEntity)
   }
 
-  activePointEntity = viewer.entities.add({
-    name: label,
+  activeMarkerEntity = viewer.entities.add({
+    name: markerLabel,
     position: Cartesian3.fromDegrees(lon, lat),
     point: {
       pixelSize: 12,
@@ -263,7 +261,7 @@ function flyToPoint(lon, lat, label = 'Point sélectionné') {
     }
   })
 
-  viewer.flyTo(activePointEntity, {
+  viewer.flyTo(activeMarkerEntity, {
     offset: new HeadingPitchRange(
       CesiumMath.toRadians(20),
       CesiumMath.toRadians(-35),
@@ -273,46 +271,37 @@ function flyToPoint(lon, lat, label = 'Point sélectionné') {
   })
 }
 
-function updateActivePoint() {
+function synchronizeMarkerPosition() {
   if (props.clickedPoint) {
-    flyToPoint(
-      props.clickedPoint.lon,
-      props.clickedPoint.lat,
-      'Point sélectionné'
-    )
+    animateCameraToMarker(props.clickedPoint.lon, props.clickedPoint.lat, 'Selected Point')
     return
   }
 
   if (props.selectedLocation) {
-    flyToPoint(
-      props.selectedLocation.lon,
-      props.selectedLocation.lat,
-      'Point localisé'
-    )
+    animateCameraToMarker(props.selectedLocation.lon, props.selectedLocation.lat, 'Located Point')
   }
 }
 
-async function loadBuildings3D() {
-  buildingsTileset = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
-  viewer.scene.primitives.add(buildingsTileset)
+async function load3DBuildings() {
+  buildings3DTileset = await Cesium3DTileset.fromUrl(SWISSTOPO_BUILDINGS_URL)
+  viewer.scene.primitives.add(buildings3DTileset)
 }
 
-function install3DClickHandler() {
-  clickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas)
+function setupClickHandler() {
+  sceneClickHandler = new ScreenSpaceEventHandler(viewer.scene.canvas)
 
-  clickHandler.setInputAction((movement) => {
-    pickedInfo.value = null
+  sceneClickHandler.setInputAction((movement) => {
+    selectedHazardInfo.value = null
 
-    const picked = viewer.scene.pick(movement.position)
-    const entity = picked?.id
+    const pickedObject = viewer.scene.pick(movement.position)
+    const entity = pickedObject?.id
 
     if (!entity?.properties) return
 
-    for (const layerId of ['avalanche', 'glissement', 'hydrologie']) {
-      const info = buildPickedInfo(entity, layerId)
-
-      if (info) {
-        pickedInfo.value = info
+    for (const hazardType of ['avalanche', 'glissement', 'hydrologie']) {
+      const hazardInfo = buildHazardInfo(entity, hazardType)
+      if (hazardInfo) {
+        selectedHazardInfo.value = hazardInfo
         return
       }
     }
@@ -343,49 +332,49 @@ onMounted(async () => {
       fullscreenButton: true
     })
 
-    addSwisstopoOrthophoto()
-    setInitialViewOnSwitzerland()
+    displaySwisstopoOrthophoto()
+    centerViewOnSwitzerland()
 
-    avalancheDataSource = await loadDangerDataSource('avalanche')
-    glissementDataSource = await loadDangerDataSource('glissement')
-    hydrologieDataSource = await loadDangerDataSource('hydrologie')
+    avalancheHazardDataSource = await loadHazardDataSource('avalanche')
+    landslideHazardDataSource = await loadHazardDataSource('glissement')
+    hydrologicalHazardDataSource = await loadHazardDataSource('hydrologie')
 
-    await loadBuildings3D()
-    install3DClickHandler()
-    updateDangerLayer3D(props.selectedDangerLayer)
-    updateActivePoint()
+    await load3DBuildings()
+    setupClickHandler()
+    synchronizeHazardLayerVisibility(props.selectedDangerLayer)
+    synchronizeMarkerPosition()
 
-    status.value = ''
+    initializationStatus.value = ''
   } catch (error) {
-    console.error(error)
-    status.value = error?.message || "Erreur d'initialisation Cesium"
+    console.error('Error initializing 3D viewer:', error)
+    initializationStatus.value = error?.message || 'Cesium initialization error'
   }
 })
 
 watch(
   () => props.selectedDangerLayer,
-  (layerId) => {
-    updateDangerLayer3D(layerId)
+  (hazardType) => {
+    synchronizeHazardLayerVisibility(hazardType)
   }
 )
 
 watch(
   [() => props.selectedLocation, () => props.clickedPoint],
   () => {
-    updateActivePoint()
+    synchronizeMarkerPosition()
   },
   { deep: true }
 )
 
 onBeforeUnmount(() => {
-  if (clickHandler) {
-    clickHandler.destroy()
-    clickHandler = null
+  if (sceneClickHandler) {
+    sceneClickHandler.destroy()
+    sceneClickHandler = null
   }
 
-  if (buildingsTileset && viewer?.scene?.primitives) {
-    viewer.scene.primitives.remove(buildingsTileset)
-    buildingsTileset = null
+  if (buildings3DTileset && viewer?.scene?.primitives) {
+    viewer.scene.primitives.remove(buildings3DTileset)
+    buildings3DTileset = null
   }
 
   if (viewer) {

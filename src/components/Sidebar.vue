@@ -11,71 +11,73 @@
 
     <div class="sidebar-content">
       <div class="sidebar-header">
-        <img class="sidebar-logo" :src="logo" alt="Explorateur AlpRisk et risques naturels" />
+        <img class="sidebar-logo" :src="logo" alt="AlpRisk Explorer" />
       </div>
-    <h1 class="title"><strong>Analyse des dangers naturels en Valais</strong></h1>
     <div class="info-box">
-      <p>📍 <strong>Choisir un point d'intérêt :</strong></p>
+      <p><strong>Bienvenue sur AlpRisk Explorer, l'explorateur des zones de dangers naturels en Valais !</strong></p>
+      <p>📍 <strong>Pour commencer, choisissez un point d'intérêt de la façon suivante :</strong></p>
       <ul>
         <li>Saisissez des coordonnées <strong>MN95</strong></li>
         <li><strong>Cliquez</strong> sur la carte 2D</li>
       </ul>
     </div>
 
-    <div class="mn95-section">
-      <h2 class="section-label">Recherche MN95 (LV95)</h2>
-      <div class="input-grid">
-        <div class="field">
-          <label>Est (E)</label>
-          <input
-            v-model.number="mn95E"
-            type="number"
-            placeholder="ex: 2600000"
-            class="no-spinner"
-          />
+      <div class="search-section">
+        <h2 class="section-label">Recherche de point en MN95 (LV95)</h2>
+        <div class="input-grid">
+          <div class="field">
+            <label>Est (E)</label>
+            <input
+              v-model.number="mn95Easting"
+              type="number"
+              placeholder="ex: 2600000"
+              class="no-spinner"
+            />
+          </div>
+
+          <div class="field">
+            <label>Nord (N)</label>
+            <input
+              v-model.number="mn95Northing"
+              type="number"
+              placeholder="ex: 1200000"
+              class="no-spinner"
+            />
+          </div>
         </div>
 
-        <div class="field">
-          <label>Nord (N)</label>
-          <input
-            v-model.number="mn95N"
-            type="number"
-            placeholder="ex: 1200000"
-            class="no-spinner"
-          />
-        </div>
+        <button class="btn-primary" @click="searchLocationByMN95">
+          Localiser la saisie sur la carte
+        </button>
       </div>
 
-      <button class="btn-primary" @click="goToMN95">
-        Localiser la saisie
-      </button>
-    </div>
-
     <div class="info-box">
-      <p>📍 <strong>Choisir une couche :</strong></p>
+      <p>📍 <strong>Puis, choisissez une couche :</strong></p>
       <ul>
-        <li>Choisissez un danger naturel dans le menu déroulant</li>
-        <li>Les zones d'avalanche, de glissement ou d'hydrologie s'afficheront sur la carte</li>
+        <li>Choisissez un type de danger naturel dans le menu déroulant ci-dessous</li>
+        <li>Les données disponibles sont les zones d'avalanche, de glissement ou d'hydrologie (Rhône)</li>
       </ul>
     </div>
 
-    <div class="layer-select-section">
-      <h2 class="section-label">Couche de danger naturel</h2>
-      <select v-model="selectedLayerId" @change="selectDangerLayer">
-        <option v-for="layer in dangerLayers" :key="layer.id" :value="layer.id">
+    <div class="hazard-layer-section">
+      <h2 class="section-label">Couche affichée</h2>
+      <select v-model="selectedHazardType" @change="selectHazardType">
+        <option v-for="layer in hazardLayerOptions" :key="layer.id" :value="layer.id">
           {{ layer.label }}
         </option>
       </select>
     </div>
-
+     <div class="info-box">
+      <p><strong>Vous pouvez maintenant rétracter cette fenêtre afin d'agrandir les cartes en utilisant le bouton ci-contre !</strong></p>
+    </div>
     <hr class="divider" />
+    </div>
   </div>
-</div>
 </template>
 
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { lv95ToLonLat } from '../services/projection.js'
+import { convertLV95ToLonLat } from '../services/projection.js'
 import logo from '../assets/Explorateur AlpRisk et risques naturels.png'
 
 const props = defineProps({
@@ -91,49 +93,49 @@ const props = defineProps({
 
 const emit = defineEmits(['toggle-sidebar', 'select-location', 'select-danger-layer'])
 
-const dangerLayers = [
+const hazardLayerOptions = [
   { id: 'avalanche', label: 'Avalanche' },
-  { id: 'glissement', label: 'Glissement' },
-  { id: 'hydrologie', label: 'Hydrologie' }
+  { id: 'glissement', label: 'Glissement de terrain' },
+  { id: 'hydrologie', label: 'Hydrologie (Rhône)' }
 ]
 
-const selectedLayerId = ref(props.selectedDangerLayer)
-const mn95E = ref(null)
-const mn95N = ref(null)
+const selectedHazardType = ref(props.selectedDangerLayer)
+const mn95Easting = ref(null)
+const mn95Northing = ref(null)
 
 watch(
   () => props.selectedDangerLayer,
-  (next) => {
-    if (next) {
-      selectedLayerId.value = next
+  (newHazardType) => {
+    if (newHazardType) {
+      selectedHazardType.value = newHazardType
     }
   }
 )
 
 onMounted(() => {
-  selectDangerLayer()
+  selectHazardType()
 })
 
-function selectDangerLayer() {
-  emit('select-danger-layer', selectedLayerId.value)
+function selectHazardType() {
+  emit('select-danger-layer', selectedHazardType.value)
 }
 
-async function goToMN95() {
-  if (mn95E.value == null || mn95N.value == null) return
+async function searchLocationByMN95() {
+  if (mn95Easting.value == null || mn95Northing.value == null) return
 
   try {
-    const { lon, lat } = await lv95ToLonLat(mn95E.value, mn95N.value)
+    const { lon, lat } = await convertLV95ToLonLat(mn95Easting.value, mn95Northing.value)
 
     emit('select-location', {
       id: `mn95-${Date.now()}`,
-      label: `MN95 ${mn95E.value} / ${mn95N.value}`,
+      label: `MN95 ${mn95Easting.value} / ${mn95Northing.value}`,
       lon,
       lat,
-      x: mn95E.value,
-      y: mn95N.value
+      x: mn95Easting.value,
+      y: mn95Northing.value
     })
   } catch (error) {
-    console.error(error)
+    console.error('Error searching location by MN95:', error)
   }
 }
 </script>
@@ -195,8 +197,8 @@ async function goToMN95() {
 }
 
 .sidebar-logo {
-  width: 300px;
-  height: 300px;
+  width: 200px;
+  height: 200px;
   object-fit: contain;
   border-radius: 40px;
   background: #fff;
@@ -226,7 +228,7 @@ async function goToMN95() {
   padding: 0;
 }
 
-.mn95-section {
+.search-section {
   background: white;
   padding: 15px;
   border-radius: 8px;
@@ -269,7 +271,7 @@ async function goToMN95() {
   border-radius: 4px;
 }
 
-.layer-select-section {
+.hazard-layer-section {
   background: white;
   padding: 15px;
   border-radius: 8px;
@@ -277,7 +279,7 @@ async function goToMN95() {
   margin-bottom: 20px;
 }
 
-.layer-select-section .section-label {
+.hazard-layer-section .section-label {
   display: block;
   margin-bottom: 8px;
   font-size: 0.75rem;
@@ -285,7 +287,7 @@ async function goToMN95() {
   font-weight: 600;
 }
 
-.layer-select-section select {
+.hazard-layer-section select {
   width: 100%;
   padding: 10px;
   border: 1px solid #cbd5e1;
